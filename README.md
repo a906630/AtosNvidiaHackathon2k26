@@ -6,6 +6,7 @@ Wieloagentowy system wspierajacy centrum kryzysowe: **FastAPI + LangGraph + NVID
 
 - wyspecjalizowani agenci domenowi: `flood`, `cyber`, `terror`, `infrastructure`, `traffic`
 - orchestracja przez `supervisor -> domain_verifier -> cross_domain_correlator -> priority_assessor -> comms_generator`
+- **cross-domain correlator analizuje snapshot ostatnio dodanych incydentów** (do 25 rekordów) w celu wychwycenia korelacji i zależności między zgłoszeniami, nie tylko bieżące incydent
 - metryki naplywu zgloszen w czasie rzeczywistym
 - analiza publicznych zrodel danych dla Polski
 - stack open-source (bez platnego search API)
@@ -19,6 +20,17 @@ Kontrakty API sa walidowane i serializowane przez modele z `app/schemas.py`:
 - `MermaidGraphResponse`, `GraphJsonResponse`, `GraphRunPreviewResponse`
 
 Dzieki temu endpointy maja stabilny format odpowiedzi i lepsza dokumentacje OpenAPI.
+
+## Multi-incident correlation
+
+`cross_domain_correlator` node analizuje snapshot do 25 ostatnio dodanych incydentów ze store:
+
+- Wczytuje historię z `app/store.py::get_recent_incidents(limit=25)` na starcie przepływu
+- Buduje kontekst Multi-incydentowy w promptzie LLM
+- Wyświetla w diagnostyce: `processing_log[...].details.analyzed_recent_incidents`
+- Zwraca w `cross_domain_relations.analyzed_recent_incidents` - ile incydentów zjadło analiza
+
+Dzięki temu corelator dostrzega wzorce całego systemu, a nie tylko izolowany incydent.
 
 ## Endpointy API
 

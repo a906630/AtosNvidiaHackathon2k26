@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 
 from app.agents.graph import get_graph
 from app.schemas import GraphJsonResponse, GraphRunPreviewResponse, MermaidGraphResponse
-from app.store import get_incident, get_live_metrics, get_result, store_result
+from app.store import get_incident, get_live_metrics, get_recent_incidents, get_result, store_result
 
 router = APIRouter(tags=["Visualization"])
 logger = logging.getLogger(__name__)
@@ -51,6 +51,7 @@ async def stream_incident(incident_id: str):
             "incident_data": incident_data,
             "category": incident_data.get("category_hint", "unknown"),
             "related_categories": [],
+            "recent_incidents": get_recent_incidents(limit=25),
             "credibility_result": None,
             "cross_domain_relations": {},
             "realtime_load": get_live_metrics(window_minutes=15),

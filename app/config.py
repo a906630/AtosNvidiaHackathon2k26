@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     nvidia_base_url: str = "http://localhost:8000/v1"
     nvidia_model: str = "meta/llama-3.3-70b-instruct"
 
+    # Guardrails
+    guardrails_enabled: bool = True
+    guardrails_fail_closed: bool = False
+
     # App
     app_host: str = "0.0.0.0"
     app_port: int = 8000

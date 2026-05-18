@@ -47,6 +47,16 @@ def list_incidents() -> list[dict]:
     ]
 
 
+def get_recent_incidents(limit: int = 25) -> list[dict]:
+    """Return a snapshot of the most recently added incidents."""
+    safe_limit = max(1, int(limit))
+    recent_items = list(_incidents.items())[-safe_limit:]
+    return [
+        {"incident_id": incident_id, **incident_data}
+        for incident_id, incident_data in recent_items
+    ]
+
+
 def get_live_metrics(window_minutes: int = 15) -> dict:
     """Return near-real-time incident volume and category counters."""
     now = datetime.now(timezone.utc)

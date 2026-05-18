@@ -21,7 +21,8 @@ from app.agents.state import IncidentState
 from app.agents.tools import get_search_tool
 from app.config import get_settings
 from app.data.public_sources import build_queries, now_date, social_tags, source_digest, source_urls
-from app.store import get_live_metrics
+from app.security.prompt_guard import guard_prompt
+from app.store import get_live_metrics, get_recent_incidents
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,25 @@ def _parse_json(text: str) -> dict:
             except Exception:
                 continue
     return json.loads(text)
+
+
+def _recent_incidents_context(incidents: list[dict], limit: int = 25) -> str:
+    """Build a compact multi-incident context for correlation prompts."""
+    recent = incidents[-limit:]
+    rows: list[str] = []
+    for incident in recent:
+        location = incident.get("location", {}) or {}
+        rows.append(
+            " - id={id} | category_hint={cat} | location={municipality}/{voivodeship} | ts={ts} | desc={desc}".format(
+                id=incident.get("incident_id", "n/a"),
+                cat=incident.get("category_hint", "unknown"),
+                municipality=_municipality(location) or "?",
+                voivodeship=location.get("voivodeship", "?"),
+                ts=incident.get("timestamp", "?"),
+                desc=str(incident.get("description", ""))[:180],
+            )
+        )
+    return "\n".join(rows) if rows else " - no recent incidents available"
 
 
 def _get_llm():
@@ -115,7 +135,7 @@ Return JSON only:
 }}"""
 
         try:
-            response = await llm.ainvoke([HumanMessage(content=prompt)])
+            response, guard_info = await _guarded_ainvoke(llm, prompt, "supervisor")
             result = _parse_json(response.content)
         except Exception as exc:
             logger.warning(f"Supervisor LLM error: {exc}")
@@ -124,6 +144,7 @@ Return JSON only:
                 "related_categories": [],
                 "classification_reasoning": f"Fallback classification due to LLM failure: {exc}",
             }
+            guard_info = {"blocked": False}
 
         category = _normalize_category(result.get("category"))
         related = [_normalize_category(item) for item in result.get("related_categories", [])]
@@ -141,6 +162,7 @@ Return JSON only:
                         "category": category,
                         "related_categories": sorted(set(related)),
                         "classification_reasoning": result.get("classification_reasoning", ""),
+                        "guardrails": guard_info,
                     },
                 }
             ],
@@ -211,7 +233,7 @@ Return JSON only:
 }}"""
 
         try:
-            response = await llm.ainvoke([HumanMessage(content=prompt)])
+            response, guard_info = await _guarded_ainvoke(llm, prompt, f"{domain}_verifier")
             result = _parse_json(response.content)
         except Exception as exc:
             logger.warning(f"{domain} verifier LLM error: {exc}")
@@ -225,6 +247,7 @@ Return JSON only:
                 "related_categories": [],
                 "confidence": "low",
             }
+            guard_info = {"blocked": False}
 
         related = [_normalize_category(item) for item in result.get("related_categories", [])]
         related = [item for item in related if item not in {"unknown", domain}]
@@ -254,6 +277,7 @@ Return JSON only:
                         "reranking_device": reranker.device,
                         "related_categories": related,
                         "confidence": result.get("confidence", "medium"),
+                        "guardrails": guard_info,
                     },
                 }
             ],
@@ -267,6 +291,8 @@ def make_cross_domain_correlator_node(llm):
         category = state.get("category", "unknown")
         related = state.get("related_categories", []) or []
         credibility = state.get("credibility_result") or {}
+        recent_incidents = state.get("recent_incidents") or get_recent_incidents(limit=25)
+        recent_context = _recent_incidents_context(recent_incidents, limit=25)
 
         default_relations = {
             "flood": ["infrastructure", "traffic", "services"],
@@ -278,12 +304,15 @@ def make_cross_domain_correlator_node(llm):
         inferred = default_relations.get(category, [])
 
         prompt = f"""You are a cross-domain dependency agent.
-Given primary category and preliminary related categories, infer systemic impact links.
+Given the current incident and the most recently added incidents, infer systemic impact links.
 
 Primary category: {category}
 Current related categories: {related}
 Credibility score: {credibility.get('credibility_score', 0.5)}
 Key findings: {credibility.get('key_findings', [])}
+
+Recent incidents snapshot (analyze all records below, not only current one):
+{recent_context}
 
 Return JSON only:
 {{
@@ -295,7 +324,7 @@ Return JSON only:
 }}"""
 
         try:
-            response = await llm.ainvoke([HumanMessage(content=prompt)])
+            response, guard_info = await _guarded_ainvoke(llm, prompt, "cross_domain_correlator")
             result = _parse_json(response.content)
         except Exception as exc:
             logger.warning(f"Correlator LLM error: {exc}")
@@ -312,6 +341,7 @@ Return JSON only:
                 ],
                 "operational_note": "Fallback dependency map",
             }
+            guard_info = {"blocked": False}
 
         llm_related = [_normalize_category(item) for item in result.get("related_categories", [])]
         merged_related = sorted(set([item for item in related + inferred + llm_related if item not in {"unknown", category}]))
@@ -323,6 +353,7 @@ Return JSON only:
             "cross_domain_relations": {
                 "dependency_graph": result.get("dependency_graph", []),
                 "operational_note": result.get("operational_note", ""),
+                "analyzed_recent_incidents": len(recent_incidents),
             },
             "realtime_load": realtime_load,
             "processing_log": [
@@ -334,8 +365,10 @@ Return JSON only:
                         "primary_category": category,
                         "related_categories": merged_related,
                         "dependency_graph_size": len(result.get("dependency_graph", [])),
+                        "analyzed_recent_incidents": len(recent_incidents),
                         "incidents_in_window": realtime_load.get("incidents_in_window", 0),
                         "category_counts": realtime_load.get("category_counts", {}),
+                        "guardrails": guard_info,
                     },
                 }
             ],
@@ -352,13 +385,14 @@ def make_priority_assessor_node(llm):
         related = state.get("related_categories", []) or []
         realtime_load = state.get("realtime_load", {})
         location = incident.get("location", {})
+        location_str = f"{_municipality(location) or 'area'}, {location.get('voivodeship', '')}".strip(", ")
 
         prompt = f"""You are a crisis prioritization officer.
 Assign priority using direct impact, cross-domain dependency and real-time load.
 
 Category: {category}
 Related categories: {related}
-Location: {_municipality(location) or '?'}, {location.get('voivodeship', '?')}
+Location: {location_str}
 Description: {incident.get('description', '')}
 Credibility: {credibility.get('credibility_score', 0.5):.0%}
 Deepfake risk: {credibility.get('deepfake_risk', 0.3):.0%}
@@ -376,7 +410,7 @@ Return JSON only:
 }}"""
 
         try:
-            response = await llm.ainvoke([HumanMessage(content=prompt)])
+            response, guard_info = await _guarded_ainvoke(llm, prompt, "priority_assessor")
             result = _parse_json(response.content)
         except Exception as exc:
             logger.warning(f"Priority assessor LLM error: {exc}")
@@ -385,6 +419,7 @@ Return JSON only:
                 "reasoning": f"Fallback due to LLM failure: {exc}",
                 "recommended_actions": ["Dispatch local services", "Run manual verification", "Issue preliminary alert"],
             }
+            guard_info = {"blocked": False}
 
         return {
             "priority": result.get("priority", "P2_HIGH"),
@@ -397,6 +432,7 @@ Return JSON only:
                     "details": {
                         "priority": result.get("priority", "P2_HIGH"),
                         "reasoning": result.get("reasoning", ""),
+                        "guardrails": guard_info,
                     },
                 }
             ],
@@ -437,7 +473,7 @@ Return JSON only:
 }}"""
 
         try:
-            response = await llm.ainvoke([HumanMessage(content=prompt)])
+            response, guard_info = await _guarded_ainvoke(llm, prompt, "comms_generator")
             result = _parse_json(response.content)
         except Exception as exc:
             logger.warning(f"Comms generator LLM error: {exc}")
@@ -455,6 +491,7 @@ Return JSON only:
                 "human_review_required": True,
                 "review_reason": f"Automatic generation fallback due to error: {exc}",
             }
+            guard_info = {"blocked": False}
 
         human_review_required = result.get("human_review_required", False)
         review_reason = result.get("review_reason")
@@ -474,12 +511,20 @@ Return JSON only:
                     "details": {
                         "human_review_required": human_review_required,
                         "review_reason": review_reason,
+                        "guardrails": guard_info,
                     },
                 }
             ],
         }
 
     return comms_generator_node
+
+
+async def _guarded_ainvoke(llm, prompt: str, context: str):
+    """Run prompt guardrails before invoking the LLM."""
+    sanitized_prompt, guard_info = guard_prompt(prompt, context=context)
+    response = await llm.ainvoke([HumanMessage(content=sanitized_prompt)])
+    return response, guard_info
 
 
 def build_crisis_graph():

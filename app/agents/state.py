@@ -16,6 +16,7 @@ class IncidentState(TypedDict):
     # Router output
     category: str
     related_categories: list[str]
+    recent_incidents: list[dict]
 
     # Output from domain verifiers.
     credibility_result: Optional[dict]
