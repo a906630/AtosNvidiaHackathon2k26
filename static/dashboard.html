@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CZK — Centrum Zarządzania Kryzysowego</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --nvidia: #76b900;
+      --nvidia-dark: #4a7800;
+      --bg: #0a0a0f;
+      --card: #12121a;
+      --border: #1e1e2e;
+    }
+    body { background: var(--bg); font-family: 'Segoe UI', system-ui, sans-serif; }
+
+    /* Agent cards */
+    .agent-card {
+      transition: all .3s ease;
+      border: 1px solid var(--border);
+      background: var(--card);
+    }
+    .agent-card.idle    { opacity: .5; }
+    .agent-card.running {
+      border-color: var(--nvidia);
+      box-shadow: 0 0 20px #76b90055, 0 0 6px #76b90088;
+      opacity: 1;
+      animation: pulse-green 1.2s ease-in-out infinite;
+    }
+    .agent-card.done {
+      border-color: #22c55e;
+      opacity: 1;
+    }
+    .agent-card.error { border-color: #ef4444; opacity: 1; }
+
+    @keyframes pulse-green {
+      0%, 100% { box-shadow: 0 0 12px #76b90066; }
+      50%       { box-shadow: 0 0 28px #76b900bb; }
+    }
+
+    /* Arrow between cards */
+    .flow-arrow { color: #374151; font-size: 1.5rem; align-self: center; }
+    .flow-arrow.active { color: var(--nvidia); }
+
+    /* Log entries */
+    .log-entry { border-left: 3px solid var(--border); }
+    .log-entry.supervisor   { border-color: #6366f1; }
+    .log-entry.flood_verifier { border-color: #38bdf8; }
+    .log-entry.priority_assessor { border-color: #a78bfa; }
+    .log-entry.comms_generator { border-color: var(--nvidia); }
+    .log-entry.done  { border-color: #22c55e; }
+    .log-entry.error { border-color: #ef4444; }
+
+    /* Priority badges */
+    .badge-P1_CRITICAL { background:#7f1d1d; color:#fca5a5; }
+    .badge-P2_HIGH     { background:#7c2d12; color:#fdba74; }
+    .badge-P3_MEDIUM   { background:#713f12; color:#fde68a; }
+    .badge-P4_LOW      { background:#14532d; color:#86efac; }
+
+    /* JSON highlight */
+    pre.json-box {
+      background: #0d0d15;
+      border: 1px solid var(--border);
+      border-radius: .5rem;
+      overflow: auto;
+      font-size: .75rem;
+      line-height: 1.5;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: #2d2d3d; border-radius: 3px; }
+
+    .mermaid-wrapper svg { max-width: 100%; height: auto; }
+  </style>
+</head>
+<body class="text-gray-200 min-h-screen">
+
+  <!-- ── HEADER ─────────────────────────────────────────────────── -->
+  <header class="border-b border-gray-800 px-6 py-3 flex items-center gap-4">
+    <div class="flex items-center gap-2">
+      <div class="w-3 h-3 rounded-full bg-[#76b900]"></div>
+      <span class="font-bold text-lg tracking-wide text-white">CZK</span>
+      <span class="text-gray-500 text-sm">Centrum Zarządzania Kryzysowego</span>
+    </div>
+    <div class="ml-auto flex gap-3 text-xs">
+      <a href="/docs" target="_blank" class="text-gray-400 hover:text-[#76b900] transition">📄 API Docs</a>
+      <a href="/viz/graph" target="_blank" class="text-gray-400 hover:text-[#76b900] transition">🗺 Graph JSON</a>
+      <a id="phoenix-link" href="http://localhost:6006" target="_blank"
+         class="text-purple-400 hover:text-purple-300 transition font-semibold border border-purple-800 rounded px-2 py-0.5">
+        🔭 Phoenix Traces
+      </a>
+    </div>
+  </header>
+
+  <main class="grid grid-cols-1 xl:grid-cols-2 gap-6 p-6 max-w-screen-2xl mx-auto">
+
+    <!-- ══ LEWA KOLUMNA ════════════════════════════════════════��══ -->
+    <div class="flex flex-col gap-6">
+
+      <!-- Formularz zgłoszenia -->
+      <section class="agent-card rounded-xl p-5 idle" style="opacity:1">
+        <h2 class="text-[#76b900] font-semibold mb-4 text-sm uppercase tracking-widest">📥 Nowe zgłoszenie</h2>
+
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block">Województwo*</label>
+            <input id="f-voivodeship" type="text" placeholder="np. dolnośląskie"
+              class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-[#76b900] outline-none" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block">Gmina</label>
+            <input id="f-municipality" type="text" placeholder="np. Wrocław"
+              class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-[#76b900] outline-none" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block">Kategoria</label>
+            <select id="f-category"
+              class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-[#76b900] outline-none">
+              <option value="flood">🌊 Powódź</option>
+              <option value="cyber">💻 Cyberatak</option>
+              <option value="terror">🚨 Atak terrorystyczny</option>
+              <option value="infrastructure">🏗 Infrastruktura</option>
+              <option value="traffic">🚗 Ruch uliczny</option>
+              <option value="services">🏥 Usługi publiczne</option>
+              <option value="unknown">❓ Nieznane</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block">Źródło zgłoszenia</label>
+            <select id="f-source"
+              class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-[#76b900] outline-none">
+              <option value="citizen">Obywatel</option>
+              <option value="sensor">Czujnik IoT</option>
+              <option value="social_media">Media społecznościowe</option>
+              <option value="institution">Instytucja</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <label class="text-xs text-gray-400 mb-1 block">Opis zdarzenia*</label>
+          <textarea id="f-description" rows="3"
+            placeholder="Szczegółowy opis sytuacji kryzysowej..."
+            class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-[#76b900] outline-none resize-none"></textarea>
+        </div>
+
+        <div class="flex gap-3">
+          <button id="btn-submit"
+            onclick="submitIncident()"
+            class="flex-1 bg-[#76b900] hover:bg-[#4a7800] text-black font-bold py-2 px-4 rounded transition text-sm">
+            ▶ Wyślij zgłoszenie
+          </button>
+          <button onclick="loadExample()"
+            class="bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 px-4 rounded transition text-sm">
+            📋 Przykład
+          </button>
+          <button onclick="resetUI()"
+            class="bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 px-4 rounded transition text-sm">
+            🔄 Reset
+          </button>
+        </div>
+      </section>
+
+      <!-- Agent flow cards -->
+      <section>
+        <h2 class="text-gray-500 text-xs uppercase tracking-widest mb-3">Przepływ agentów</h2>
+        <div class="flex items-start gap-2 flex-wrap">
+
+          <div id="card-supervisor" class="agent-card idle rounded-xl p-4 flex-1 min-w-[140px]">
+            <div class="text-2xl mb-2">🎯</div>
+            <div class="font-semibold text-sm text-white">Supervisor</div>
+            <div class="text-xs text-gray-500 mt-1">Klasyfikacja i routing</div>
+            <div id="status-supervisor" class="text-xs mt-2 text-gray-600">— czeka —</div>
+          </div>
+
+          <div class="flow-arrow" id="arrow-0">›</div>
+
+          <div id="card-flood_verifier" class="agent-card idle rounded-xl p-4 flex-1 min-w-[140px]">
+            <div class="text-2xl mb-2">🌊</div>
+            <div class="font-semibold text-sm text-white">Flood Verifier</div>
+            <div class="text-xs text-gray-500 mt-1">Weryfikacja w mediach</div>
+            <div id="status-flood_verifier" class="text-xs mt-2 text-gray-600">— czeka —</div>
+          </div>
+
+          <div class="flow-arrow" id="arrow-1">›</div>
+
+          <div id="card-cyber_verifier" class="agent-card idle rounded-xl p-4 flex-1 min-w-[140px]">
+            <div class="text-2xl mb-2">💻</div>
+            <div class="font-semibold text-sm text-white">Cyber Verifier</div>
+            <div class="text-xs text-gray-500 mt-1">Weryfikacja cyberataków</div>
+            <div id="status-cyber_verifier" class="text-xs mt-2 text-gray-600">— czeka —</div>
+          </div>
+
+          <div class="flow-arrow" id="arrow-2">›</div>
+
+          <div id="card-terror_verifier" class="agent-card idle rounded-xl p-4 flex-1 min-w-[140px]">
+            <div class="text-2xl mb-2">🚨</div>
+            <div class="font-semibold text-sm text-white">Terror Verifier</div>
+            <div class="text-xs text-gray-500 mt-1">Weryfikacja ataków terrorystycznych</div>
+            <div id="status-terror_verifier" class="text-xs mt-2 text-gray-600">— czeka —</div>
+          </div>
+
+          <div class="flow-arrow" id="arrow-3">›</div>
+
+          <div id="card-infrastructure_verifier" class="agent-card idle rounded-xl p-4 flex-1 min-w-[140px]">
+            <div class="text-2xl mb-2">🏗</div>
+            <div class="font-semibold text-sm text-white">Infrastructure Verifier</div>
+            <div class="text-xs text-gray-500 mt-1">Weryfikacja infrastruktury</div>
+            <div id="status-infrastructure_verifier" class="text-xs mt-2 text-gray-600">— czeka —</div>
+          </div>
+
+          <div class="flow-arrow" id="arrow-4">›</div>
+
+          <div id="card-traffic_verifier" class="agent-card idle rounded-xl p-4 flex-1 min-w-[140px]">
+            <div class="text-2xl mb-2">🚗</div>
+            <div class="font-semibold text-sm text-white">Traffic Verifier</div>
+            <div class="text-xs text-gray-500 mt-1">Weryfikacja ruchu ulicznego</div>
+            <div id="status-traffic_verifier" class="text-xs mt-2 text-gray-600">— czeka —</div>
+          </div>
+
+          <div class="flow-arrow" id="arrow-5">›</div>
+
+          <div id="card-cross_domain_correlator" class="agent-card idle rounded-xl p-4 flex-1 min-w-[140px]">
+            <div class="text-2xl mb-2">🔁</div>
+            <div class="font-semibold text-sm text-white">Cross-domain Correlator</div>
+            <div class="text-xs text-gray-500 mt-1">Relacje cross-domain</div>
+            <div id="status-cross_domain_correlator" class="text-xs mt-2 text-gray-600">— czeka —</div>
+          </div>
+
+          <div class="flow-arrow" id="arrow-6">›</div>
+
+          <div id="card-priority_assessor" class="agent-card idle rounded-xl p-4 flex-1 min-w-[140px]">
+            <div class="text-2xl mb-2">⚖️</div>
+            <div class="font-semibold text-sm text-white">Priority Assessor</div>
+            <div class="text-xs text-gray-500 mt-1">Priorytetyzacja P1–P4</div>
+            <div id="status-priority_assessor" class="text-xs mt-2 text-gray-600">— czeka —</div>
+          </div>
+
+          <div class="flow-arrow" id="arrow-7">›</div>
+
+          <div id="card-comms_generator" class="agent-card idle rounded-xl p-4 flex-1 min-w-[140px]">
+            <div class="text-2xl mb-2">📢</div>
+            <div class="font-semibold text-sm text-white">Comms Generator</div>
+            <div class="text-xs text-gray-500 mt-1">Generowanie komunikatów</div>
+            <div id="status-comms_generator" class="text-xs mt-2 text-gray-600">— czeka —</div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Mermaid topology (pobierana z API) -->
+      <section class="agent-card rounded-xl p-5" style="opacity:1">
+        <h2 class="text-gray-500 text-xs uppercase tracking-widest mb-3">🗺 Topologia grafu (LangGraph)</h2>
+        <div id="mermaid-container" class="mermaid-wrapper text-center text-gray-600 text-sm py-4">
+          Ładowanie diagramu...
+        </div>
+      </section>
+
+      <!-- Observability tools info -->
+      <section class="agent-card rounded-xl p-5" style="opacity:1">
+        <h2 class="text-gray-500 text-xs uppercase tracking-widest mb-3">🔭 Wizualizacja przepływu — narzędzia</h2>
+        <div class="space-y-2 text-xs">
+
+          <div class="flex items-start gap-3 bg-purple-950/40 border border-purple-800/50 rounded-lg p-3">
+            <span class="text-lg">🔭</span>
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="font-semibold text-purple-300">Arize Phoenix</span>
+                <span class="bg-purple-800 text-purple-200 px-1.5 py-0.5 rounded text-xxs">AKTYWNY · :6006</span>
+                <span class="bg-green-900 text-green-300 px-1.5 py-0.5 rounded text-xxs">offline · zero Docker</span>
+              </div>
+              <div class="text-gray-400">Trace waterfall · latencja per węzeł · tokeny · pełne prompty LLM</div>
+              <a href="http://localhost:6006" target="_blank"
+                 class="text-purple-400 hover:text-purple-300 mt-1 inline-block">→ Otwórz Phoenix UI</a>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-3 bg-gray-900/60 border border-gray-700/50 rounded-lg p-3">
+            <span class="text-lg">🗺</span>
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="font-semibold text-gray-300">LangGraph Studio</span>
+                <span class="bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded text-xxs">wymaga Docker · :2024</span>
+              </div>
+              <div class="text-gray-400">Topologia grafu · warunki routingu · state inspector krok po kroku</div>
+              <code class="text-gray-500 mt-1 inline-block">langgraph dev --port 2024</code>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-3 bg-gray-900/60 border border-gray-700/50 rounded-lg p-3 opacity-50">
+            <span class="text-lg">❌</span>
+            <div>
+              <span class="font-semibold text-gray-400">Weave / AgentOps</span>
+              <span class="ml-2 bg-red-900 text-red-300 px-1.5 py-0.5 rounded text-xxs">cloud-only · brak offline</span>
+              <div class="text-gray-600 mt-1">Wymagają połączenia z internetem — odrzucone dla Brev</div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ══ PRAWA KOLUMNA ═══════════════════════════════════════════ -->
+    <div class="flex flex-col gap-6">
+
+      <!-- Realtime volume -->
+      <section class="agent-card rounded-xl p-5" style="opacity:1">
+        <h2 class="text-gray-500 text-xs uppercase tracking-widest mb-3">📈 Realtime incident load</h2>
+        <div class="grid grid-cols-3 gap-2 text-center mb-3">
+          <div class="bg-gray-900 rounded p-2">
+            <div class="text-xxs text-gray-500">Total</div>
+            <div id="m-total" class="text-white font-semibold">0</div>
+          </div>
+          <div class="bg-gray-900 rounded p-2">
+            <div class="text-xxs text-gray-500">Active</div>
+            <div id="m-active" class="text-yellow-300 font-semibold">0</div>
+          </div>
+          <div class="bg-gray-900 rounded p-2">
+            <div class="text-xxs text-gray-500">15m</div>
+            <div id="m-window" class="text-green-300 font-semibold">0</div>
+          </div>
+        </div>
+        <div id="m-cats" class="text-xs text-gray-400">No data yet.</div>
+      </section>
+
+      <!-- Live event log -->
+      <section class="agent-card rounded-xl p-5 flex flex-col" style="opacity:1; min-height:300px">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-gray-500 text-xs uppercase tracking-widest">📡 Live event log</h2>
+          <div id="processing-indicator" class="hidden flex items-center gap-2 text-xs text-[#76b900]">
+            <div class="w-2 h-2 rounded-full bg-[#76b900] animate-ping"></div>
+            przetwarzanie...
+          </div>
+        </div>
+        <div id="event-log"
+          class="flex-1 overflow-y-auto space-y-2 text-sm font-mono max-h-64">
+          <div class="text-gray-600 text-xs">— brak aktywności —</div>
+        </div>
+      </section>
+
+      <!-- Wynik: komunikaty -->
+      <section id="result-section" class="agent-card rounded-xl p-5 hidden" style="opacity:1">
+        <h2 class="text-[#76b900] font-semibold mb-4 text-sm uppercase tracking-widest">✅ Wynik przetwarzania</h2>
+
+        <div class="grid grid-cols-3 gap-3 mb-5">
+          <div class="bg-gray-900 rounded-lg p-3 text-center">
+            <div class="text-xs text-gray-500 mb-1">Kategoria</div>
+            <div id="r-category" class="font-bold text-white text-sm">—</div>
+          </div>
+          <div class="bg-gray-900 rounded-lg p-3 text-center">
+            <div class="text-xs text-gray-500 mb-1">Priorytet</div>
+            <div id="r-priority" class="font-bold text-sm">—</div>
+          </div>
+          <div class="bg-gray-900 rounded-lg p-3 text-center">
+            <div class="text-xs text-gray-500 mb-1">Wiarygodność</div>
+            <div id="r-credibility" class="font-bold text-white text-sm">—</div>
+          </div>
+        </div>
+
+        <div id="r-review-banner" class="hidden mb-4 bg-yellow-900/40 border border-yellow-600 rounded-lg p-3 text-xs text-yellow-300">
+          ⚠️ <strong>Wymagana ręczna weryfikacja</strong> — <span id="r-review-reason"></span>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <div class="text-xs text-gray-400 mb-1 flex items-center gap-2">
+              🚨 <span class="uppercase tracking-widest">Komunikat dla służb</span>
+            </div>
+            <div id="r-service" class="bg-gray-900 rounded-lg p-3 text-sm text-gray-200 leading-relaxed"></div>
+          </div>
+          <div>
+            <div class="text-xs text-gray-400 mb-1 flex items-center gap-2">
+              📢 <span class="uppercase tracking-widest">Komunikat dla obywateli</span>
+            </div>
+            <div id="r-citizen" class="bg-[#0d1f05] border border-[#76b900]/30 rounded-lg p-3 text-sm text-green-200 leading-relaxed"></div>
+          </div>
+          <div>
+            <div class="text-xs text-gray-400 mb-2">📋 Zalecane działania</div>
+            <ul id="r-actions" class="space-y-1 text-sm text-gray-300"></ul>
+          </div>
+        </div>
+
+        <details class="mt-4">
+          <summary class="text-xs text-gray-500 cursor-pointer hover:text-gray-300">🔍 Pełny JSON wyniku</summary>
+          <pre id="r-json" class="json-box p-3 mt-2 text-green-400"></pre>
+        </details>
+      </section>
+
+    </div>
+
+  </main>
+
+  <!-- ── SCRIPTS ─────────────────────────────────────────────── -->
+  <script>
+    mermaid.initialize({ startOnLoad: false, theme: 'dark', darkMode: true });
+
+    // Ładuj diagram Mermaid z API
+    async function loadMermaidDiagram() {
+      try {
+        const r = await fetch('/viz/graph');
+        const data = await r.json();
+        const el = document.getElementById('mermaid-container');
+        el.innerHTML = `<div class="mermaid">${data.mermaid}</div>`;
+        await mermaid.run({ nodes: el.querySelectorAll('.mermaid') });
+      } catch (e) {
+        document.getElementById('mermaid-container').textContent = 'Błąd ładowania diagramu: ' + e.message;
+      }
+    }
+    loadMermaidDiagram();
+
+    async function refreshMetrics() {
+      try {
+        const res = await fetch('/api/v1/metrics/live?window_minutes=15');
+        const m = await res.json();
+        document.getElementById('m-total').textContent = m.total_incidents ?? 0;
+        document.getElementById('m-active').textContent = m.active_processing ?? 0;
+        document.getElementById('m-window').textContent = m.incidents_in_window ?? 0;
+        const cats = Object.entries(m.category_counts || {})
+          .sort((a, b) => b[1] - a[1])
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(' | ');
+        document.getElementById('m-cats').textContent = cats || 'No category activity.';
+      } catch (e) {
+        document.getElementById('m-cats').textContent = 'Metrics unavailable: ' + e.message;
+      }
+    }
+    refreshMetrics();
+    setInterval(refreshMetrics, 5000);
+
+    // ── helpers ────────────────────────────────────────────────
+    const NODE_ORDER = [
+      'supervisor',
+      'flood_verifier',
+      'cyber_verifier',
+      'terror_verifier',
+      'infrastructure_verifier',
+      'traffic_verifier',
+      'cross_domain_correlator',
+      'priority_assessor',
+      'comms_generator'
+    ];
+
+    function setCardState(node, state) {
+      const card = document.getElementById('card-' + node);
+      if (!card) return;
+      card.classList.remove('idle', 'running', 'done', 'error');
+      card.classList.add(state);
+    }
+
+    function setCardStatus(node, text) {
+      const el = document.getElementById('status-' + node);
+      if (el) el.textContent = text;
+    }
+
+    function addLogEntry(type, node, message, details) {
+      const log = document.getElementById('event-log');
+      // Usuń placeholder
+      const placeholder = log.querySelector('.text-gray-600');
+      if (placeholder && placeholder.textContent.includes('brak aktywności')) placeholder.remove();
+
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${node || type} rounded px-3 py-2 bg-gray-900/60`;
+
+      const icons = { supervisor: '🎯', flood_verifier: '🌊', priority_assessor: '⚖️', comms_generator: '📢', done: '✅', error: '❌' };
+      const icon = icons[node] || icons[type] || '•';
+      const time = new Date().toLocaleTimeString('pl-PL');
+
+      entry.innerHTML = `
+        <div class="flex items-center gap-2 text-xs">
+          <span>${icon}</span>
+          <span class="text-gray-400">${time}</span>
+          <span class="font-semibold text-white">${node || type}</span>
+        </div>
+        <div class="text-xs text-gray-300 mt-1 pl-5">${message}</div>
+        ${details ? `<details class="pl-5 mt-1"><summary class="text-xxs text-gray-600 cursor-pointer">szczegóły</summary><pre class="text-xxs text-gray-500 overflow-auto max-h-24">${JSON.stringify(details, null, 2)}</pre></details>` : ''}
+      `;
+
+      log.appendChild(entry);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function showResult(result) {
+      document.getElementById('result-section').classList.remove('hidden');
+
+      const catEmojis = {
+        flood: '🌊',
+        infrastructure: '🏗',
+        cyber: '💻',
+        terror: '🚨',
+        traffic: '🚗',
+        services: '🏥',
+        unknown: '❓'
+      };
+      document.getElementById('r-category').textContent = (catEmojis[result.category] || '') + ' ' + (result.category || '—');
+
+      const priEl = document.getElementById('r-priority');
+      priEl.textContent = result.priority || '—';
+      priEl.className = 'font-bold text-sm px-2 py-0.5 rounded badge-' + (result.priority || '');
+
+      const cred = result.credibility;
+      document.getElementById('r-credibility').textContent = cred
+        ? Math.round(cred.credibility_score * 100) + '%'
+        : '—';
+
+      document.getElementById('r-service').textContent = result.service_message || '—';
+      document.getElementById('r-citizen').textContent = result.citizen_message || '—';
+
+      const actions = document.getElementById('r-actions');
+      actions.innerHTML = '';
+      (result.recommended_actions || []).forEach(a => {
+        const li = document.createElement('li');
+        li.className = 'flex items-start gap-2';
+        li.innerHTML = `<span class="text-[#76b900] mt-0.5">›</span><span>${a}</span>`;
+        actions.appendChild(li);
+      });
+
+      if (result.human_review_required) {
+        document.getElementById('r-review-banner').classList.remove('hidden');
+        document.getElementById('r-review-reason').textContent =
+          result.processing_log?.slice(-1)[0]?.details?.review_reason || 'Weryfikacja wymagana';
+      }
+
+      document.getElementById('r-json').textContent = JSON.stringify(result, null, 2);
+    }
+
+    // ── main flow ──────────────────────────────────────────────
+    let currentEventSource = null;
+
+    async function submitIncident() {
+      const voivodeship = document.getElementById('f-voivodeship').value.trim();
+      const description = document.getElementById('f-description').value.trim();
+
+      if (!voivodeship || !description) {
+        alert('Wypełnij województwo i opis!');
+        return;
+      }
+
+      resetUI(false);
+
+      const payload = {
+        location: {
+          voivodeship,
+          municipality: document.getElementById('f-municipality').value.trim() || undefined,
+        },
+        category_hint: document.getElementById('f-category').value,
+        description,
+        source: {
+          type: document.getElementById('f-source').value,
+          channel: 'web',
+        },
+        timestamp: new Date().toISOString(),
+      };
+
+      addLogEntry('info', null, 'Wysyłanie zgłoszenia...');
+      document.getElementById('processing-indicator').classList.remove('hidden');
+      document.getElementById('btn-submit').disabled = true;
+      document.getElementById('btn-submit').textContent = '⏳ przetwarzanie...';
+
+      try {
+        const r = await fetch('/api/v1/incidents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await r.json();
+        addLogEntry('info', null, `Zgłoszenie przyjęte — ID: ${data.incident_id}`);
+        startStreaming(data.incident_id);
+      } catch (e) {
+        addLogEntry('error', null, 'Błąd wysyłania: ' + e.message);
+        document.getElementById('btn-submit').disabled = false;
+        document.getElementById('btn-submit').textContent = '▶ Wyślij zgłoszenie';
+      }
+    }
+
+    function startStreaming(incidentId) {
+      if (currentEventSource) currentEventSource.close();
+
+      // Highlight first node
+      setCardState('supervisor', 'running');
+      setCardStatus('supervisor', '🔄 klasyufikacja...');
+
+      const es = new EventSource(`/viz/stream/${incidentId}`);
+      currentEventSource = es;
+
+      es.onmessage = (e) => {
+        const event = JSON.parse(e.data);
+
+        if (event.type === 'node_complete') {
+          const node = event.node;
+          setCardState(node, 'done');
+          setCardStatus(node, '✓ ukończono');
+
+          // Activate next node in chain
+          const idx = NODE_ORDER.indexOf(node);
+          if (idx >= 0 && idx < NODE_ORDER.length - 1) {
+            const nextNode = NODE_ORDER[idx + 1];
+            // Only highlight if it's not flood_verifier being skipped
+            const isFlood = event.data?.category === 'flood' || !event.data?.category;
+            if (nextNode !== 'flood_verifier' || isFlood !== false) {
+              setCardState(nextNode, 'running');
+              setCardStatus(nextNode, '🔄 przetwarzanie...');
+            }
+          }
+
+          // Build description message
+          const msgs = {
+            supervisor: `Kategoria: ${event.data?.category || '?'} — ${event.data?.details?.classification_reasoning || ''}`,
+            flood_verifier: `Flood credibility: ${Math.round((event.data?.credibility_result?.credibility_score || 0) * 100)}%`,
+            cyber_verifier: `Cyber credibility: ${Math.round((event.data?.credibility_result?.credibility_score || 0) * 100)}%`,
+            terror_verifier: `Terror credibility: ${Math.round((event.data?.credibility_result?.credibility_score || 0) * 100)}%`,
+            infrastructure_verifier: `Infrastructure credibility: ${Math.round((event.data?.credibility_result?.credibility_score || 0) * 100)}%`,
+            traffic_verifier: `Traffic credibility: ${Math.round((event.data?.credibility_result?.credibility_score || 0) * 100)}%`,
+            cross_domain_correlator: `Relacje cross-domain: ${(event.data?.related_categories || []).join(', ') || 'brak'}`,
+            priority_assessor: `Priorytet: ${event.data?.priority || '?'}`,
+            comms_generator: `Komunikaty wygenerowane${event.data?.human_review_required ? ' ⚠️ wymagana weryfikacja' : ''}`,
+          };
+          addLogEntry('node_complete', node, msgs[node] || event.description || 'ukończono', null);
+        }
+
+        if (event.type === 'done') {
+          NODE_ORDER.forEach(n => setCardState(n, 'done'));
+          document.getElementById('processing-indicator').classList.add('hidden');
+          document.getElementById('btn-submit').disabled = false;
+          document.getElementById('btn-submit').textContent = '▶ Wyślij zgłoszenie';
+          addLogEntry('done', null, '🎉 Przetwarzanie zakończone!');
+          showResult(event.result);
+          es.close();
+        }
+
+        if (event.type === 'error') {
+          addLogEntry('error', null, '❌ Błąd: ' + event.message);
+          document.getElementById('processing-indicator').classList.add('hidden');
+          document.getElementById('btn-submit').disabled = false;
+          document.getElementById('btn-submit').textContent = '▶ Wyślij zgłoszenie';
+          es.close();
+        }
+      };
+
+      es.onerror = () => {
+        addLogEntry('error', null, 'Połączenie SSE zerwane');
+        es.close();
+      };
+    }
+
+    function loadExample() {
+      document.getElementById('f-voivodeship').value = 'dolnośląskie';
+      document.getElementById('f-municipality').value = 'Wrocław';
+      document.getElementById('f-category').value = 'flood';
+      document.getElementById('f-source').value = 'citizen';
+      document.getElementById('f-description').value =
+        'Woda zalała ulicę Świdnicką i plac Solny. Poziom Odry przekroczył stan alarmowy o 40 cm. Mieszkańcy ewakuują się z parteru. Strażacy rozstawiają worki z piaskiem, sytuacja dynamicznie się pogarsza.';
+    }
+
+    function resetUI(clearForm = true) {
+      if (clearForm) {
+        ['f-voivodeship', 'f-municipality', 'f-description'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+      }
+      NODE_ORDER.forEach(n => {
+        setCardState(n, 'idle');
+        setCardStatus(n, '— czeka —');
+      });
+      document.getElementById('event-log').innerHTML = '<div class="text-gray-600 text-xs">— brak aktywności —</div>';
+      document.getElementById('result-section').classList.add('hidden');
+      document.getElementById('processing-indicator').classList.add('hidden');
+      document.getElementById('r-review-banner').classList.add('hidden');
+      document.getElementById('btn-submit').disabled = false;
+      document.getElementById('btn-submit').textContent = '▶ Wyślij zgłoszenie';
+      if (currentEventSource) { currentEventSource.close(); currentEventSource = null; }
+    }
+  </script>
+</body>
+</html>

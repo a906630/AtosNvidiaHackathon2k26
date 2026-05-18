@@ -1,0 +1,37 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.7.0
+pydantic-settings>=2.3.0
+python-dotenv>=1.0.0
+
+# LangChain ecosystem
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-community>=0.3.0
+langchain-nvidia-ai-endpoints>=0.3.5
+
+# LangGraph orchestration
+langgraph>=0.2.55
+langgraph-cli>=0.1.0
+
+# Open-source search and parsing
+# DuckDuckGo search does not require paid API keys.
+duckduckgo-search>=6.3.0
+feedparser>=6.0.11
+
+# CUDA / GPU
+# On Brev install CUDA-enabled torch first:
+# pip install torch --index-url https://download.pytorch.org/whl/cu124
+torch>=2.3.0
+sentence-transformers>=3.0.0
+
+# Observability (open-source, self-hosted)
+arize-phoenix>=7.0.0
+openinference-instrumentation-langchain>=0.1.0
+opentelemetry-sdk>=1.25.0
+opentelemetry-exporter-otlp-proto-http>=1.25.0
+
+# Utilities
+httpx>=0.27.0
+python-multipart>=0.0.9
+aiohttp>=3.10.0

@@ -1,0 +1,10 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "crisis_graph": "./app/agents/graph.py:get_graph"
+  },
+  "env": ".env",
+  "python_version": "3.11",
+  "dockerfile_lines": []
+}
+
