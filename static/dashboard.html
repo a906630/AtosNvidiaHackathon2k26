@@ -331,6 +331,22 @@
         <div id="m-cats" class="text-xs text-gray-400">No data yet.</div>
       </section>
 
+      <!-- Incident list switcher -->
+      <section class="agent-card rounded-xl p-5" style="opacity:1">
+        <h2 class="text-gray-500 text-xs uppercase tracking-widest mb-3">🔄 Przełącz incydent</h2>
+        <div class="flex gap-2 items-center">
+          <select id="incident-switcher"
+            class="flex-1 bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-[#76b900] outline-none"
+            onchange="switchIncident()">
+            <option value="">— Wybierz incydent do podglądu —</option>
+          </select>
+          <button onclick="loadIncidentsList()"
+            class="bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 px-3 rounded transition text-sm whitespace-nowrap">
+            🔄 Odśwież
+          </button>
+        </div>
+      </section>
+
       <!-- Live event log -->
       <section class="agent-card rounded-xl p-5 flex flex-col" style="opacity:1; min-height:300px">
         <div class="flex items-center justify-between mb-3">
@@ -678,6 +694,128 @@
       document.getElementById('btn-submit').textContent = '▶ Wyślij zgłoszenie';
       if (currentEventSource) { currentEventSource.close(); currentEventSource = null; }
     }
+
+    // ── Incident switcher ──────────────────────────────────────────
+    async function loadIncidentsList() {
+      try {
+        const res = await fetch('/api/v1/incidents');
+        const incidents = await res.json();
+        const switcher = document.getElementById('incident-switcher');
+        switcher.innerHTML = '<option value="">— Wybierz incydent do podglądu —</option>';
+
+        incidents.forEach(inc => {
+          const catEmojis = {
+            flood: '🌊',
+            infrastructure: '🏗',
+            cyber: '💻',
+            terror: '🚨',
+            traffic: '🚗',
+            services: '🏥',
+            unknown: '❓'
+          };
+          const cat = inc.category_hint || 'unknown';
+          const emoji = catEmojis[cat] || '?';
+          const desc = (inc.description || '').slice(0, 50) + (inc.description?.length > 50 ? '...' : '');
+          const option = document.createElement('option');
+          option.value = inc.incident_id;
+          option.textContent = `${emoji} ${inc.incident_id.substring(0, 8)}... — ${desc}`;
+          switcher.appendChild(option);
+        });
+      } catch (e) {
+        console.error('Błąd ładowania listy incydentów:', e);
+      }
+    }
+
+    async function switchIncident() {
+      const incidentId = document.getElementById('incident-switcher').value;
+      if (!incidentId) return;
+
+      resetUI(false);
+      await loadIncidentStream(incidentId);
+    }
+
+    async function loadIncidentStream(incidentId) {
+      try {
+        addLogEntry(null, null, `📥 Ładowanie incydentu: ${incidentId}`);
+
+        // Pobranie wyniku (jeśli jest gotowy)
+        const resultRes = await fetch(`/api/v1/incidents/${incidentId}/result`);
+        if (resultRes.ok) {
+          const result = await resultRes.json();
+          if (result) {
+            showResult(result);
+            addLogEntry(null, null, '✅ Wynik załadowany z cache');
+            if (result.processing_log) {
+              result.processing_log.forEach(log => {
+                const node = log.agent;
+                setCardState(node, 'done');
+                addLogEntry('log', node, log.status, log.details);
+              });
+            }
+            return;
+          }
+        }
+
+        // Pobranie wyniku z SSE stream
+        const streamRes = await fetch(`/viz/stream/${incidentId}`);
+        if (!streamRes.ok) {
+          throw new Error(`HTTP ${streamRes.status}`);
+        }
+
+        const reader = streamRes.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const jsonStr = line.substring(6);
+                const event = JSON.parse(jsonStr);
+
+                if (event.type === 'node_data') {
+                  const node = event.node;
+                  setCardState(node, 'running');
+                  setCardStatus(node, '⚙️ przetwarzanie...');
+                }
+
+                if (event.type === 'node_complete') {
+                  const node = event.node;
+                  setCardState(node, 'done');
+                  setCardStatus(node, '✓ gotowe');
+                  addLogEntry('log', node, 'Ukończono', event.data?.details);
+                }
+
+                if (event.type === 'done') {
+                  NODE_ORDER.forEach(n => setCardState(n, 'done'));
+                  addLogEntry(null, null, '🎉 Przetwarzanie zakończone!');
+                  if (event.result) {
+                    showResult(event.result);
+                  }
+                }
+
+                if (event.type === 'error') {
+                  addLogEntry('error', null, '❌ Błąd: ' + event.message);
+                }
+              } catch (e) {
+                console.error('Błąd przetwarzania SSE:', e);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        addLogEntry('error', null, '❌ Błąd ładowania: ' + e.message);
+      }
+    }
+
+    // Załaduj listę incydentów przy starcie
+    loadIncidentsList();
+    setInterval(loadIncidentsList, 10000);
   </script>
 </body>
 </html>

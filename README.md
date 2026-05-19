@@ -380,10 +380,35 @@ python main.py
 python examples/send_incidents.py
 ```
 
+   **Output z nowymi logami:**
+   ```
+   ==================================================
+   [14:23:45] ℹ️  Znaleziono 50 incydentów do wysłania
+   [14:23:45] ℹ️  Adres API: http://localhost:8000
+   [14:23:45] ℹ️  [1/50] Przetwarzanie...
+   [14:23:46] ✅ flood_01.json → incident_a1b2c3d4
+   [14:23:46] ✅ flood_02.json → incident_x5y6z7w8
+   ...
+   [14:24:30] ✅ Wysłano 50 incydentów
+   [14:24:30] ℹ️  Powodzenie: 50 | Błędy: 0
+   ==================================================
+   ```
+
 3. Monitoruj SSE stream incydentu:
 ```bash
 curl http://localhost:8000/viz/stream/{incident_id}
 ```
+
+4. **W dashboardzie** — nowa funkcjonalność przełączania między incydentami:
+   - Przejdź do `http://localhost:8000`
+   - Sekcja "🔄 Przełącz incydent" pokazuje listę wszystkich wysłanych incydentów
+   - Kliknij na incydent, aby załadować jego SSE stream i wyświetlić wyniki
+   - Przycisk "🔄 Odśwież" aktualizuje listę co 10 sekund automatycznie
+
+5. **Obserwuj traces w Phoenix**:
+   - `http://localhost:6006`
+   - Każdy incydent pojawia się jako trace z waterfall LLM calls, latencjami i tokenami
+   - Arize Phoenix jest uruchamiane automatycznie w `app/observability.py`
 
 Szczegółowe instrukcje: [examples/README.md](examples/README.md)
 
