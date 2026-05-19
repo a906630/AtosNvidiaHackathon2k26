@@ -19,6 +19,10 @@ import httpx
 from langchain_core.messages import HumanMessage
 from langgraph.graph import END, START, StateGraph
 
+from app.agents.credibility_model import (
+    AdvancedCredibilityModel,
+    estimate_llm_credibility_bounds,
+)
 from app.agents.cuda_utils import get_reranker
 from app.agents.state import IncidentState
 from app.agents.tools import get_search_tool
@@ -377,59 +381,59 @@ Return JSON only:
 
 
 def make_domain_verifier_node(llm, search_tool, domain: str):
-    async def domain_verifier_node(state: IncidentState) -> dict:
-        selected_domains = state.get("selected_domains") or []
-        if domain not in selected_domains:
-            return {
-                "processing_log": [
-                    {
-                        "agent": f"{domain}_verifier",
-                        "status": "skipped",
-                        "timestamp": _now(),
-                        "details": {"reason": "domain_not_selected", "selected_domains": selected_domains},
-                    }
-                ]
-            }
+     async def domain_verifier_node(state: IncidentState) -> dict:
+         selected_domains = state.get("selected_domains") or []
+         if domain not in selected_domains:
+             return {
+                 "processing_log": [
+                     {
+                         "agent": f"{domain}_verifier",
+                         "status": "skipped",
+                         "timestamp": _now(),
+                         "details": {"reason": "domain_not_selected", "selected_domains": selected_domains},
+                     }
+                 ]
+             }
 
-        incident = state["incident_data"]
-        location = incident.get("location", {})
-        location_str = f"{_municipality(location)}, {location.get('voivodeship', '')}".strip(", ")
-        description = incident.get("description", "")
-        date_str = str(incident.get("timestamp", "") or now_date())[:10]
+         incident = state["incident_data"]
+         location = incident.get("location", {})
+         location_str = f"{_municipality(location)}, {location.get('voivodeship', '')}".strip(", ")
+         description = incident.get("description", "")
+         date_str = str(incident.get("timestamp", "") or now_date())[:10]
 
-        queries = build_queries(domain, location_str, date_str, description)
-        queries += [f"site:x.com {tag} {location_str}" for tag in social_tags(domain)[:3]]
+         queries = build_queries(domain, location_str, date_str, description)
+         queries += [f"site:x.com {tag} {location_str}" for tag in social_tags(domain)[:3]]
 
-        raw_results, cache_meta = await _search_public_sources_cached(
-            domain=domain,
-            queries=queries,
-            search_tool=search_tool,
-            location_str=location_str,
-        )
+         raw_results, cache_meta = await _search_public_sources_cached(
+             domain=domain,
+             queries=queries,
+             search_tool=search_tool,
+             location_str=location_str,
+         )
 
-        valid_results = [item for item in raw_results if not item.startswith("[search-error") and item.strip()]
-        evidence_snippets = [item for item in valid_results if not item.startswith("[")]
-        has_realtime_evidence = len(evidence_snippets) > 0
-        reranker = get_reranker()
-        top_results = reranker.rerank(
-            query=f"{domain} incident in {location_str}. {description}",
-            results=valid_results if valid_results else raw_results,
-            top_k=4,
-        )
+         valid_results = [item for item in raw_results if not item.startswith("[search-error") and item.strip()]
+         evidence_snippets = [item for item in valid_results if not item.startswith("[")]
+         has_realtime_evidence = len(evidence_snippets) > 0
+         search_had_errors = any(item.startswith("[search-error") for item in raw_results)
 
-        numbered = "\n".join(f"[{index + 1}] {snippet}" for index, snippet in enumerate(top_results))
+         reranker = get_reranker()
+         top_results = reranker.rerank(
+             query=f"{domain} incident in {location_str}. {description}",
+             results=valid_results if valid_results else raw_results,
+             top_k=4,
+         )
 
-        prompt = f"""You are a {domain} verification agent for Poland crisis operations.
+         numbered = "\n".join(f"[{index + 1}] {snippet}" for index, snippet in enumerate(top_results))
+
+         prompt = f"""You are a {domain} verification agent for Poland crisis operations.
 Use the curated public source catalog and open-web findings to assess credibility.
 
-Hard rules:
-1) Base assessment ONLY on Search snippets evidence.
-2) If snippets are unavailable/insufficient, set:
-   - corroborating_evidence=false
-   - confidence="low"
-   - credibility_score <= 0.30
-3) Never treat incident description alone as corroborated fact.
-4) Never claim real-time confirmation without snippet evidence.
+Guidelines:
+1) Base assessment primarily on Search snippets evidence (if available).
+2) Consider description specificity and coherence with search results.
+3) Report corroborating_evidence=false if snippets are insufficient/unavailable.
+4) If no snippet evidence: credibility_score should reflect description quality only.
+5) Never claim certainty without supporting evidence.
 
 Domain: {domain}
 Location: {location_str}
@@ -437,6 +441,7 @@ Date: {date_str}
 Description: {description}
 Curated sources: {source_digest(domain)}
 Suggested X tags: {social_tags(domain)}
+Found {len(top_results)} relevant search results to evaluate.
 
 Search snippets:
 {numbered}
@@ -453,90 +458,132 @@ Return JSON only:
   "confidence": "high|medium|low"
 }}"""
 
-        if not has_realtime_evidence:
-            result = {
-                "credibility_score": 0.15,
-                "deepfake_risk": 0.70,
-                "reasoning": "Brak potwierdzenia w czasie rzeczywistym: wyszukiwarka zwrocila brak danych lub blad.",
-                "sources_found": [],
-                "key_findings": ["Brak niezaleznych dowodow realtime do potwierdzenia zdarzenia."],
-                "corroborating_evidence": False,
-                "related_categories": [],
-                "confidence": "low",
-            }
-            guard_info = {
-                "blocked": False,
-                "evidence_policy": {
-                    "has_realtime_evidence": False,
-                    "reason": "search_unavailable_or_empty",
-                },
-            }
-        else:
-            try:
-                response, guard_info = await _guarded_ainvoke(llm, prompt, f"{domain}_verifier")
-                result = _parse_json(response.content)
-            except Exception as exc:
-                logger.warning(f"{domain} verifier LLM error: {exc}")
-                result = {
-                    "credibility_score": 0.35,
-                    "deepfake_risk": 0.55,
-                    "reasoning": f"Fallback due to LLM failure: {exc}",
-                    "sources_found": [],
-                    "key_findings": ["Automatic verification degraded"],
-                    "corroborating_evidence": False,
-                    "related_categories": [],
-                    "confidence": "low",
-                }
-                guard_info = {"blocked": False}
+         # Use advanced credibility model for intelligent fallback
+         if not has_realtime_evidence:
+             automated_score = AdvancedCredibilityModel.compute_credibility_score(
+                 description=description,
+                 raw_results=raw_results,
+                 top_results=top_results,
+                 has_search_errors=search_had_errors,
+                 has_realtime_evidence=False,
+             )
+             automated_risk = AdvancedCredibilityModel.compute_deepfake_risk(
+                 description=description,
+                 top_results=top_results,
+                 coherence_score=0.0,
+             )
 
-        # Enforce evidence-grounded bounds even if model drifts.
-        if not has_realtime_evidence:
-            result["credibility_score"] = min(_as_float(result.get("credibility_score", 0.15), 0.15), 0.30)
-            result["corroborating_evidence"] = False
-            result["confidence"] = "low"
+             result = {
+                 "credibility_score": automated_score,
+                 "deepfake_risk": automated_risk,
+                 "reasoning": "Brak realtime evidence: ocena oparta na jakości indywidualnego opisu zdarzenia.",
+                 "sources_found": [],
+                 "key_findings": ["Brak niezaleznych dowodow w zewnetrznych zrodlach."],
+                 "corroborating_evidence": False,
+                 "related_categories": [],
+                 "confidence": "low",
+             }
+             guard_info = {
+                 "blocked": False,
+                 "evidence_policy": {
+                     "has_realtime_evidence": False,
+                     "reason": "search_unavailable_or_empty",
+                     "automated_model": "advanced_credibility_model",
+                     "computed_score": automated_score,
+                 },
+             }
+         else:
+             try:
+                 response, guard_info = await _guarded_ainvoke(llm, prompt, f"{domain}_verifier")
+                 result = _parse_json(response.content)
+             except Exception as exc:
+                 logger.warning(f"{domain} verifier LLM error: {exc}")
+                 # Fallback with intelligent scoring
+                 automated_score = AdvancedCredibilityModel.compute_credibility_score(
+                     description=description,
+                     raw_results=valid_results,
+                     top_results=top_results,
+                     has_search_errors=False,
+                     has_realtime_evidence=True,
+                 )
+                 result = {
+                     "credibility_score": automated_score,
+                     "deepfake_risk": 0.45,
+                     "reasoning": f"Fallback z powodu bledu LLM: {exc}",
+                     "sources_found": [],
+                     "key_findings": ["Automatyczna weryfikacja zdegraduwana"],
+                     "corroborating_evidence": len(top_results) >= 2,
+                     "related_categories": [],
+                     "confidence": "low",
+                 }
+                 guard_info = {"blocked": False}
 
-        related = [_normalize_category(item) for item in _extract_related_categories(result.get("related_categories"))]
-        related = [item for item in related if item not in {"unknown", domain}]
+         # Validate and bound LLM output using evidence-aware strategy
+         llm_score = _as_float(result.get("credibility_score", 0.5), 0.5)
+         min_bound, max_bound = estimate_llm_credibility_bounds(
+             raw_results_count=len(raw_results),
+             top_results_count=len(top_results),
+         )
 
-        return {
-            "domain_verifications": {
-                domain: {
-                    "credibility_score": _as_float(result.get("credibility_score", 0.5), 0.5),
-                    "deepfake_risk": _as_float(result.get("deepfake_risk", 0.3), 0.3),
-                    "reasoning": _as_str(result.get("reasoning"), ""),
-                    "sources_found": _as_list_str(result.get("sources_found")),
-                    "key_findings": _as_list_str(result.get("key_findings")),
-                    "corroborating_evidence": bool(result.get("corroborating_evidence", False)),
-                }
-            },
-            "related_categories": sorted(set((state.get("related_categories", []) or []) + related)),
-            "processing_log": [
-                {
-                    "agent": f"{domain}_verifier",
-                    "status": "completed",
-                    "timestamp": _now(),
-                    "details": {
-                        "domain": domain,
-                        "media_sources_checked": {
-                            "curated_urls": source_urls(domain),
-                            "x_hashtags_monitored": social_tags(domain),
-                            "total_queries_executed": len(queries[:8]),
-                        },
-                        "queries": queries[:8],
-                        "curated_sources": source_urls(domain),
-                        "social_tags": social_tags(domain),
-                        "results_fetched": len(raw_results),
-                        "results_after_reranking": len(top_results),
-                        "reranking_device": reranker.device,
-                        "top_results_preview": top_results[:2] if len(top_results) >= 2 else top_results,
-                        "cache": cache_meta,
-                        "related_categories": related,
-                        "confidence": result.get("confidence", "medium"),
-                        "guardrails": guard_info,
-                    },
-                }
-            ],
-        }
+         # Apply bounds with logging for transparency
+         bounded_score = max(min_bound, min(max_bound, llm_score))
+         if abs(bounded_score - llm_score) > 0.05:
+             logger.info(
+                 f"{domain}_verifier score adjustment for consistency: "
+                 f"{llm_score:.3f} -> {bounded_score:.3f} "
+                 f"(bounds: {min_bound:.3f}-{max_bound:.3f}, "
+                 f"results: {len(raw_results)} raw, {len(top_results)} reranked)"
+             )
+
+         result["credibility_score"] = bounded_score
+
+          # If very low evidence, mark corroboration as false
+          if len(top_results) == 0:
+              result["corroborating_evidence"] = False
+              result["confidence"] = "low"
+
+          related = [_normalize_category(item) for item in _extract_related_categories(result.get("related_categories"))]
+          related = [item for item in related if item not in {"unknown", domain}]
+
+          return {
+              "domain_verifications": {
+                  domain: {
+                      "credibility_score": _as_float(result.get("credibility_score", 0.5), 0.5),
+                      "deepfake_risk": _as_float(result.get("deepfake_risk", 0.3), 0.3),
+                      "reasoning": _as_str(result.get("reasoning"), ""),
+                      "sources_found": _as_list_str(result.get("sources_found")),
+                      "key_findings": _as_list_str(result.get("key_findings")),
+                      "corroborating_evidence": bool(result.get("corroborating_evidence", False)),
+                  }
+              },
+              "related_categories": sorted(set((state.get("related_categories", []) or []) + related)),
+              "processing_log": [
+                  {
+                      "agent": f"{domain}_verifier",
+                      "status": "completed",
+                      "timestamp": _now(),
+                      "details": {
+                          "domain": domain,
+                          "media_sources_checked": {
+                              "curated_urls": source_urls(domain),
+                              "x_hashtags_monitored": social_tags(domain),
+                              "total_queries_executed": len(queries[:8]),
+                          },
+                          "queries": queries[:8],
+                          "curated_sources": source_urls(domain),
+                          "social_tags": social_tags(domain),
+                          "results_fetched": len(raw_results),
+                          "results_after_reranking": len(top_results),
+                          "reranking_device": reranker.device,
+                          "top_results_preview": top_results[:2] if len(top_results) >= 2 else top_results,
+                          "cache": cache_meta,
+                          "related_categories": related,
+                          "confidence": result.get("confidence", "medium"),
+                          "guardrails": guard_info,
+                      },
+                  }
+              ],
+          }
 
     return domain_verifier_node
 
@@ -636,72 +683,125 @@ Return JSON only:
 
 
 def make_priority_assessor_node(llm):
-    async def priority_assessor_node(state: IncidentState) -> dict:
-        incident = state["incident_data"]
-        credibility = state.get("credibility_result") or {}
-        category = state.get("category", "unknown")
-        related = state.get("related_categories", []) or []
-        realtime_load = state.get("realtime_load", {})
-        location = incident.get("location", {})
-        location_str = f"{_municipality(location) or 'area'}, {location.get('voivodeship', '')}".strip(", ")
+     async def priority_assessor_node(state: IncidentState) -> dict:
+         incident = state["incident_data"]
+         credibility = state.get("credibility_result") or {}
+         category = state.get("category", "unknown")
+         related = state.get("related_categories", []) or []
+         realtime_load = state.get("realtime_load", {})
+         location = incident.get("location", {})
+         location_str = f"{_municipality(location) or 'area'}, {location.get('voivodeship', '')}".strip(", ")
 
-        prompt = f"""You are a crisis prioritization officer.
-Assign priority using direct impact, cross-domain dependency and real-time load.
+         credibility_score = _as_float(credibility.get("credibility_score", 0.5), 0.5)
+         deepfake_risk = _as_float(credibility.get("deepfake_risk", 0.3), 0.3)
+         corroborating = credibility.get("corroborating_evidence", False)
+
+         # Determine priority baseline based on credibility signal
+         # Low credibility incidents should get P3 or P4 unless there are strong indicators
+         credibility_priority_baseline = "P4_LOW"
+         if credibility_score >= 0.70:
+             credibility_priority_baseline = "P2_HIGH"
+         elif credibility_score >= 0.50:
+             credibility_priority_baseline = "P3_MEDIUM"
+         elif credibility_score >= 0.30:
+             credibility_priority_baseline = "P3_MEDIUM"
+
+         # High deepfake risk should lower priority or require more evidence
+         if deepfake_risk >= 0.60:
+             credibility_priority_baseline = "P4_LOW"
+
+         prompt = f"""You are a crisis prioritization officer for Polish emergency services.
+Assign priority using credibility signals, incident type, load, and corroborating evidence.
 All textual outputs MUST be in Polish.
 
-Category: {category}
-Related categories: {related}
-Location: {location_str}
-Description: {incident.get('description', '')}
-Credibility: {credibility.get('credibility_score', 0.5):.0%}
-Deepfake risk: {credibility.get('deepfake_risk', 0.3):.0%}
-Realtime incidents in 15m window: {realtime_load.get('incidents_in_window', 0)}
-Category load distribution: {realtime_load.get('category_counts', {})}
+IMPORTANT RULES:
+1) Do NOT override credibility signals: low credibility should NOT get P1_CRITICAL
+2) Corroborating evidence (multiple sources) justifies higher priority
+3) High deepfake risk (>60%) suggests lower priority unless corroborated
+4) Category criticality matters: cyber/terror can be P1; floods depend on scope
 
-Priority scale:
-P1_CRITICAL, P2_HIGH, P3_MEDIUM, P4_LOW
+Assessment data:
+- Category: {category}
+- Related categories: {related}
+- Location: {location_str}
+- Description: {incident.get('description', '')}
+- Credibility score: {credibility_score:.1%}
+- Deepfake risk: {deepfake_risk:.1%}
+- Corroborating evidence: {corroborating}
+- Realtime incidents in 15m: {realtime_load.get('incidents_in_window', 0)}
+- Category distribution: {realtime_load.get('category_counts', {})}
+- Suggested baseline priority: {credibility_priority_baseline}
+
+Priority scale (be conservative with high priority):
+- P1_CRITICAL: Verified threat to large population or critical infrastructure
+- P2_HIGH: Credible threat or confirmed incident affecting multiple systems
+- P3_MEDIUM: Probable incident or lower credibility with concerning signals
+- P4_LOW: Low credibility, unverified, or minor impact
 
 Return JSON only:
 {{
   "priority": "P1_CRITICAL | P2_HIGH | P3_MEDIUM | P4_LOW",
-  "reasoning": "krotkie uzasadnienie po polsku",
-  "recommended_actions": ["zalecenie 1 po polsku", "zalecenie 2 po polsku", "zalecenie 3 po polsku"]
+  "reasoning": "uzasadnienie po polsku",
+  "recommended_actions": ["zalecenie 1", "zalecenie 2", "zalecenie 3"]
 }}"""
 
-        try:
-            response, guard_info = await _guarded_ainvoke(llm, prompt, "priority_assessor")
-            result = _parse_json(response.content)
-        except Exception as exc:
-            logger.warning(f"Priority assessor LLM error: {exc}")
-            result = {
-                "priority": "P2_HIGH",
-                "reasoning": f"Fallback z powodu bledu LLM: {exc}",
-                "recommended_actions": [
-                    "Skierowac lokalne sluzby do obszaru zdarzenia",
-                    "Uruchomic reczna weryfikacje informacji",
-                    "Wydac wstepny komunikat ostrzegawczy",
-                ],
-            }
-            guard_info = {"blocked": False}
+         try:
+             response, guard_info = await _guarded_ainvoke(llm, prompt, "priority_assessor")
+             result = _parse_json(response.content)
+         except Exception as exc:
+             logger.warning(f"Priority assessor LLM error: {exc}")
+             result = {
+                 "priority": credibility_priority_baseline,
+                 "reasoning": f"Fallback z powodu bledu LLM: {exc}. Bazowy priorytet wg wiarygodnosci.",
+                 "recommended_actions": [
+                     "Skierowac lokalne sluzby do obszaru zdarzenia",
+                     "Uruchomic reczna weryfikacje informacji",
+                     "Wydac wstepny komunikat ostrzegawczy",
+                 ],
+             }
+             guard_info = {"blocked": False}
 
-        return {
-            "priority": result.get("priority", "P2_HIGH"),
-            "recommended_actions": result.get("recommended_actions", []),
-            "processing_log": [
-                {
-                    "agent": "priority_assessor",
-                    "status": "completed",
-                    "timestamp": _now(),
-                    "details": {
-                        "priority": result.get("priority", "P2_HIGH"),
-                        "reasoning": result.get("reasoning", ""),
-                        "guardrails": guard_info,
-                    },
-                }
-            ],
-        }
+         # Enforce credibility-based priority sanity check
+         llm_priority = result.get("priority", credibility_priority_baseline)
+         priority_map = {"P1_CRITICAL": 1, "P2_HIGH": 2, "P3_MEDIUM": 3, "P4_LOW": 4}
 
-    return priority_assessor_node
+         # Verify LLM priority doesn't contradict credibility signal
+         # If low credibility (< 0.35) and high deepfake risk, cap at P3_MEDIUM
+         if credibility_score < 0.35 and deepfake_risk > 0.55:
+             if priority_map.get(llm_priority, 4) < 3:  # Less than P3_MEDIUM
+                 llm_priority = "P3_MEDIUM"
+                 logger.info(
+                     f"priority_assessor: Adjusted {result.get('priority')} -> P3_MEDIUM "
+                     f"due to low credibility ({credibility_score:.1%}) and high deepfake risk ({deepfake_risk:.1%})"
+                 )
+
+         # If credibility is high (>0.75) with corroborating evidence, can justify P1
+         if credibility_score > 0.75 and corroborating and category in {"cyber", "terror", "infrastructure"}:
+             if priority_map.get(llm_priority, 4) > 1:  # Could be lowered
+                 llm_priority = "P1_CRITICAL"
+
+         return {
+             "priority": llm_priority,
+             "recommended_actions": result.get("recommended_actions", []),
+             "processing_log": [
+                 {
+                     "agent": "priority_assessor",
+                     "status": "completed",
+                     "timestamp": _now(),
+                     "details": {
+                         "priority": llm_priority,
+                         "reasoning": result.get("reasoning", ""),
+                         "credibility_baseline": credibility_priority_baseline,
+                         "credibility_score": credibility_score,
+                         "deepfake_risk": deepfake_risk,
+                         "corroborating_evidence": corroborating,
+                         "guardrails": guard_info,
+                     },
+                 }
+             ],
+         }
+
+     return priority_assessor_node
 
 
 def make_comms_generator_node(llm):
