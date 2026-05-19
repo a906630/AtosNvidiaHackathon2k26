@@ -9,17 +9,23 @@ class Settings(BaseSettings):
     # On Brev with local NIM, API key is not required.
     nvidia_api_key: str = "no-key"
     nvidia_base_url: str = "http://localhost:8000/v1"
-    nvidia_model: str = "meta/llama-3.3-70b-instruct"
+    nvidia_model: str = "meta/llama-3.1-8b-instruct"
     # Per-agent model routing (models may repeat).
     nvidia_model_supervisor: str = ""
     nvidia_model_domain_verifier: str = ""
     nvidia_model_cross_domain_correlator: str = ""
     nvidia_model_priority_assessor: str = ""
     nvidia_model_comms_generator: str = ""
+    nvidia_max_tokens: int = 1024
 
     # Guardrails
     guardrails_enabled: bool = True
     guardrails_fail_closed: bool = False
+
+    # Public sources polling/cache
+    media_refresh_minutes: int = 5
+    media_max_queries: int = 8
+    media_results_per_query: int = 2
 
     # App
     app_host: str = "0.0.0.0"

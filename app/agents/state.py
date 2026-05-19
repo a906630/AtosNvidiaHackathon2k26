@@ -2,6 +2,11 @@ from typing import TypedDict, Annotated, Optional
 from operator import add
 
 
+def merge_dicts(a: dict | None, b: dict | None) -> dict:
+    """Reducer for parallel nodes: merge dictionaries instead of overwriting."""
+    return {**(a or {}), **(b or {})}
+
+
 class ProcessingStep(TypedDict):
     agent: str
     status: str
@@ -16,10 +21,12 @@ class IncidentState(TypedDict):
     # Router output
     category: str
     related_categories: list[str]
+    selected_domains: list[str]
     recent_incidents: list[dict]
 
     # Output from domain verifiers.
     credibility_result: Optional[dict]
+    domain_verifications: Annotated[dict[str, dict], merge_dicts]
 
     # Output from correlation and prioritization.
     cross_domain_relations: dict

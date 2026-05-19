@@ -7,11 +7,12 @@ Flow:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
-from typing import Literal
+from typing import TypedDict
 
 import httpx
 
@@ -27,6 +28,15 @@ from app.security.prompt_guard import guard_prompt
 from app.store import get_live_metrics, get_recent_incidents
 
 logger = logging.getLogger(__name__)
+
+
+class MediaCacheEntry(TypedDict):
+    fetched_at: datetime
+    results: list[str]
+
+
+_media_cache: dict[str, MediaCacheEntry] = {}
+_media_cache_lock = asyncio.Lock()
 
 DOMAIN_TO_NODE = {
     "flood": "flood_verifier",
@@ -85,8 +95,8 @@ def _get_llm(model: str | None = None):
         model=model or settings.nvidia_model,
         base_url=settings.nvidia_base_url,
         api_key=settings.nvidia_api_key,
-        temperature=0.1,
-        max_tokens=2048,
+        temperature=0.0,
+        max_tokens=settings.nvidia_max_tokens,
     )
 
 
@@ -99,6 +109,80 @@ def _agent_model_map() -> dict[str, str]:
         "cross_domain_correlator": settings.nvidia_model_cross_domain_correlator or fallback,
         "priority_assessor": settings.nvidia_model_priority_assessor or fallback,
         "comms_generator": settings.nvidia_model_comms_generator or fallback,
+    }
+
+
+def _select_domains(primary_category: str, related_categories: list[str]) -> list[str]:
+    """Select one or more domain verifiers to run after supervisor classification."""
+    selected: list[str] = []
+    for item in [primary_category, *(related_categories or [])]:
+        normalized = _normalize_category(item)
+        if normalized in DOMAIN_TO_NODE and normalized not in selected:
+            selected.append(normalized)
+    if not selected:
+        # Safe fallback: run all domain verifiers when classification is uncertain.
+        return list(DOMAIN_TO_NODE.keys())
+    return selected
+
+
+async def _search_public_sources_cached(
+    *,
+    domain: str,
+    queries: list[str],
+    search_tool,
+    location_str: str,
+) -> tuple[list[str], dict]:
+    """Query public sources with in-memory TTL cache and periodic refresh."""
+    settings = get_settings()
+    cache_key = f"{domain}|{location_str.strip().lower()}"
+    refresh_delta = timedelta(minutes=max(1, settings.media_refresh_minutes))
+    now = datetime.now(timezone.utc)
+
+    async with _media_cache_lock:
+        cached = _media_cache.get(cache_key)
+        if cached and (now - cached["fetched_at"]) < refresh_delta:
+            return cached["results"], {
+                "cache_hit": True,
+                "cache_key": cache_key,
+                "fetched_at": cached["fetched_at"].isoformat(),
+                "age_seconds": int((now - cached["fetched_at"]).total_seconds()),
+            }
+
+    max_queries = max(1, settings.media_max_queries)
+    per_query = max(1, settings.media_results_per_query)
+    raw_results: list[str] = []
+
+    if search_tool:
+        for query in queries[:max_queries]:
+            logger.info(f"[{domain}_verifier] search query: {query}")
+            try:
+                raw = await search_tool.ainvoke(query)
+                if isinstance(raw, list):
+                    logger.info(f"[{domain}_verifier] search returned {len(raw)} items")
+                    for item in raw[:per_query]:
+                        snippet = str(item.get("content", ""))[:700] if isinstance(item, dict) else str(item)[:700]
+                        raw_results.append(snippet)
+                else:
+                    logger.info(f"[{domain}_verifier] search returned non-list payload")
+                    raw_results.append(str(raw)[:700])
+            except Exception as exc:
+                logger.warning(f"[{domain}_verifier] search error for query='{query}': {exc}")
+                raw_results.append(f"[search-error: {exc}]")
+    else:
+        logger.warning(f"[{domain}_verifier] search-tool-unavailable")
+        raw_results.append("[search-tool-unavailable]")
+
+    async with _media_cache_lock:
+        _media_cache[cache_key] = {
+            "fetched_at": now,
+            "results": raw_results,
+        }
+
+    return raw_results, {
+        "cache_hit": False,
+        "cache_key": cache_key,
+        "fetched_at": now.isoformat(),
+        "age_seconds": 0,
     }
 
 
@@ -238,10 +322,12 @@ Return JSON only:
         category = _normalize_category(result.get("category"))
         related = [_normalize_category(item) for item in result.get("related_categories", [])]
         related = [item for item in related if item not in {"unknown", category}]
+        selected_domains = _select_domains(category, related)
 
         return {
             "category": category,
             "related_categories": sorted(set(related)),
+            "selected_domains": selected_domains,
             "processing_log": [
                 {
                     "agent": "supervisor",
@@ -250,6 +336,7 @@ Return JSON only:
                     "details": {
                         "category": category,
                         "related_categories": sorted(set(related)),
+                        "selected_domains": selected_domains,
                         "classification_reasoning": result.get("classification_reasoning", ""),
                         "guardrails": guard_info,
                     },
@@ -262,6 +349,19 @@ Return JSON only:
 
 def make_domain_verifier_node(llm, search_tool, domain: str):
     async def domain_verifier_node(state: IncidentState) -> dict:
+        selected_domains = state.get("selected_domains") or []
+        if domain not in selected_domains:
+            return {
+                "processing_log": [
+                    {
+                        "agent": f"{domain}_verifier",
+                        "status": "skipped",
+                        "timestamp": _now(),
+                        "details": {"reason": "domain_not_selected", "selected_domains": selected_domains},
+                    }
+                ]
+            }
+
         incident = state["incident_data"]
         location = incident.get("location", {})
         location_str = f"{_municipality(location)}, {location.get('voivodeship', '')}".strip(", ")
@@ -271,25 +371,12 @@ def make_domain_verifier_node(llm, search_tool, domain: str):
         queries = build_queries(domain, location_str, date_str, description)
         queries += [f"site:x.com {tag} {location_str}" for tag in social_tags(domain)[:3]]
 
-        raw_results: list[str] = []
-        if search_tool:
-            for query in queries[:8]:
-                logger.info(f"[{domain}_verifier] search query: {query}")
-                try:
-                    raw = await search_tool.ainvoke(query)
-                    if isinstance(raw, list):
-                        logger.info(f"[{domain}_verifier] search returned {len(raw)} items")
-                        for item in raw[:2]:
-                            raw_results.append(str(item.get("content", ""))[:700] if isinstance(item, dict) else str(item)[:700])
-                    else:
-                        logger.info(f"[{domain}_verifier] search returned non-list payload")
-                        raw_results.append(str(raw)[:700])
-                except Exception as exc:
-                    logger.warning(f"[{domain}_verifier] search error for query='{query}': {exc}")
-                    raw_results.append(f"[search-error: {exc}]")
-        else:
-            logger.warning(f"[{domain}_verifier] search-tool-unavailable")
-            raw_results.append("[search-tool-unavailable]")
+        raw_results, cache_meta = await _search_public_sources_cached(
+            domain=domain,
+            queries=queries,
+            search_tool=search_tool,
+            location_str=location_str,
+        )
 
         valid_results = [item for item in raw_results if not item.startswith("[search-error") and item.strip()]
         reranker = get_reranker()
@@ -347,6 +434,16 @@ Return JSON only:
         related = [item for item in related if item not in {"unknown", domain}]
 
         return {
+            "domain_verifications": {
+                domain: {
+                    "credibility_score": float(result.get("credibility_score", 0.5)),
+                    "deepfake_risk": float(result.get("deepfake_risk", 0.3)),
+                    "reasoning": result.get("reasoning", ""),
+                    "sources_found": result.get("sources_found", []),
+                    "key_findings": result.get("key_findings", []),
+                    "corroborating_evidence": bool(result.get("corroborating_evidence", False)),
+                }
+            },
             "credibility_result": {
                 "credibility_score": float(result.get("credibility_score", 0.5)),
                 "deepfake_risk": float(result.get("deepfake_risk", 0.3)),
@@ -375,6 +472,7 @@ Return JSON only:
                         "results_after_reranking": len(top_results),
                         "reranking_device": reranker.device,
                         "top_results_preview": top_results[:2] if len(top_results) >= 2 else top_results,
+                        "cache": cache_meta,
                         "related_categories": related,
                         "confidence": result.get("confidence", "medium"),
                         "guardrails": guard_info,
@@ -390,7 +488,8 @@ def make_cross_domain_correlator_node(llm):
     async def cross_domain_correlator_node(state: IncidentState) -> dict:
         category = state.get("category", "unknown")
         related = state.get("related_categories", []) or []
-        credibility = state.get("credibility_result") or {}
+        domain_verifications = state.get("domain_verifications") or {}
+        credibility = domain_verifications.get(category) or state.get("credibility_result") or {}
         recent_incidents = state.get("recent_incidents") or get_recent_incidents(limit=25)
         recent_context = _recent_incidents_context(recent_incidents, limit=25)
 
@@ -450,10 +549,12 @@ Return JSON only:
 
         return {
             "related_categories": merged_related,
+            "credibility_result": credibility,
             "cross_domain_relations": {
                 "dependency_graph": result.get("dependency_graph", []),
                 "operational_note": result.get("operational_note", ""),
                 "analyzed_recent_incidents": len(recent_incidents),
+                "domains_verified": sorted(domain_verifications.keys()),
             },
             "realtime_load": realtime_load,
             "processing_log": [
@@ -695,31 +796,12 @@ def build_crisis_graph(model_map: dict[str, str] | None = None):
 
     workflow.add_edge(START, "supervisor")
 
-    def route_after_supervisor(
-        state: IncidentState,
-    ) -> Literal[
-        "flood_verifier",
-        "cyber_verifier",
-        "terror_verifier",
-        "infrastructure_verifier",
-        "traffic_verifier",
-        "cross_domain_correlator",
-    ]:
-        category = _normalize_category(state.get("category", "unknown"))
-        return DOMAIN_TO_NODE.get(category, "cross_domain_correlator")
-
-    workflow.add_conditional_edges(
-        "supervisor",
-        route_after_supervisor,
-        {
-            "flood_verifier": "flood_verifier",
-            "cyber_verifier": "cyber_verifier",
-            "terror_verifier": "terror_verifier",
-            "infrastructure_verifier": "infrastructure_verifier",
-            "traffic_verifier": "traffic_verifier",
-            "cross_domain_correlator": "cross_domain_correlator",
-        },
-    )
+    # Fan-out: run all verifiers in parallel; each verifier decides whether to process or skip.
+    workflow.add_edge("supervisor", "flood_verifier")
+    workflow.add_edge("supervisor", "cyber_verifier")
+    workflow.add_edge("supervisor", "terror_verifier")
+    workflow.add_edge("supervisor", "infrastructure_verifier")
+    workflow.add_edge("supervisor", "traffic_verifier")
 
     workflow.add_edge("flood_verifier", "cross_domain_correlator")
     workflow.add_edge("cyber_verifier", "cross_domain_correlator")
