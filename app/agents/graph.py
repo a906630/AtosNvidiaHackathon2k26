@@ -85,6 +85,18 @@ def _as_float(value, default: float) -> float:
         return default
 
 
+def _extract_related_categories(raw_value) -> list[str]:
+    """Normalize related categories from LLM output (supports pipe/comma separated tokens)."""
+    items = _as_list_str(raw_value)
+    out: list[str] = []
+    for item in items:
+        for token in item.replace(",", "|").split("|"):
+            cleaned = token.strip()
+            if cleaned:
+                out.append(cleaned)
+    return out
+
+
 def _recent_incidents_context(incidents: list[dict], limit: int = 25) -> str:
     """Build a compact multi-incident context for correlation prompts."""
     recent = incidents[-limit:]
@@ -396,6 +408,8 @@ def make_domain_verifier_node(llm, search_tool, domain: str):
         )
 
         valid_results = [item for item in raw_results if not item.startswith("[search-error") and item.strip()]
+        evidence_snippets = [item for item in valid_results if not item.startswith("[")]
+        has_realtime_evidence = len(evidence_snippets) > 0
         reranker = get_reranker()
         top_results = reranker.rerank(
             query=f"{domain} incident in {location_str}. {description}",
@@ -407,6 +421,15 @@ def make_domain_verifier_node(llm, search_tool, domain: str):
 
         prompt = f"""You are a {domain} verification agent for Poland crisis operations.
 Use the curated public source catalog and open-web findings to assess credibility.
+
+Hard rules:
+1) Base assessment ONLY on Search snippets evidence.
+2) If snippets are unavailable/insufficient, set:
+   - corroborating_evidence=false
+   - confidence="low"
+   - credibility_score <= 0.30
+3) Never treat incident description alone as corroborated fact.
+4) Never claim real-time confirmation without snippet evidence.
 
 Domain: {domain}
 Location: {location_str}
@@ -430,24 +453,49 @@ Return JSON only:
   "confidence": "high|medium|low"
 }}"""
 
-        try:
-            response, guard_info = await _guarded_ainvoke(llm, prompt, f"{domain}_verifier")
-            result = _parse_json(response.content)
-        except Exception as exc:
-            logger.warning(f"{domain} verifier LLM error: {exc}")
+        if not has_realtime_evidence:
             result = {
-                "credibility_score": 0.5,
-                "deepfake_risk": 0.3,
-                "reasoning": f"Fallback due to LLM failure: {exc}",
-                "sources_found": source_urls(domain)[:2],
-                "key_findings": ["Automatic verification degraded"],
+                "credibility_score": 0.15,
+                "deepfake_risk": 0.70,
+                "reasoning": "Brak potwierdzenia w czasie rzeczywistym: wyszukiwarka zwrocila brak danych lub blad.",
+                "sources_found": [],
+                "key_findings": ["Brak niezaleznych dowodow realtime do potwierdzenia zdarzenia."],
                 "corroborating_evidence": False,
                 "related_categories": [],
                 "confidence": "low",
             }
-            guard_info = {"blocked": False}
+            guard_info = {
+                "blocked": False,
+                "evidence_policy": {
+                    "has_realtime_evidence": False,
+                    "reason": "search_unavailable_or_empty",
+                },
+            }
+        else:
+            try:
+                response, guard_info = await _guarded_ainvoke(llm, prompt, f"{domain}_verifier")
+                result = _parse_json(response.content)
+            except Exception as exc:
+                logger.warning(f"{domain} verifier LLM error: {exc}")
+                result = {
+                    "credibility_score": 0.35,
+                    "deepfake_risk": 0.55,
+                    "reasoning": f"Fallback due to LLM failure: {exc}",
+                    "sources_found": [],
+                    "key_findings": ["Automatic verification degraded"],
+                    "corroborating_evidence": False,
+                    "related_categories": [],
+                    "confidence": "low",
+                }
+                guard_info = {"blocked": False}
 
-        related = [_normalize_category(item) for item in _as_list_str(result.get("related_categories"))]
+        # Enforce evidence-grounded bounds even if model drifts.
+        if not has_realtime_evidence:
+            result["credibility_score"] = min(_as_float(result.get("credibility_score", 0.15), 0.15), 0.30)
+            result["corroborating_evidence"] = False
+            result["confidence"] = "low"
+
+        related = [_normalize_category(item) for item in _extract_related_categories(result.get("related_categories"))]
         related = [item for item in related if item not in {"unknown", domain}]
 
         return {
