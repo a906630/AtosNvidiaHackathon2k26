@@ -10,6 +10,12 @@ class Settings(BaseSettings):
     nvidia_api_key: str = "no-key"
     nvidia_base_url: str = "http://localhost:8000/v1"
     nvidia_model: str = "meta/llama-3.3-70b-instruct"
+    # Per-agent model routing (models may repeat).
+    nvidia_model_supervisor: str = "meta/llama-3.1-8b-instruct"
+    nvidia_model_domain_verifier: str = "meta/llama-3.3-70b-instruct"
+    nvidia_model_cross_domain_correlator: str = "meta/llama-3.1-70b-instruct"
+    nvidia_model_priority_assessor: str = "meta/llama-3.1-70b-instruct"
+    nvidia_model_comms_generator: str = "meta/llama-3.1-70b-instruct"
 
     # Guardrails
     guardrails_enabled: bool = True

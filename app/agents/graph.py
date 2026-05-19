@@ -75,17 +75,29 @@ def _recent_incidents_context(incidents: list[dict], limit: int = 25) -> str:
     return "\n".join(rows) if rows else " - no recent incidents available"
 
 
-def _get_llm():
+def _get_llm(model: str | None = None):
     settings = get_settings()
     from langchain_nvidia_ai_endpoints import ChatNVIDIA
 
     return ChatNVIDIA(
-        model=settings.nvidia_model,
+        model=model or settings.nvidia_model,
         base_url=settings.nvidia_base_url,
         api_key=settings.nvidia_api_key,
         temperature=0.1,
         max_tokens=2048,
     )
+
+
+def _agent_model_map() -> dict[str, str]:
+    settings = get_settings()
+    fallback = settings.nvidia_model
+    return {
+        "supervisor": settings.nvidia_model_supervisor or fallback,
+        "domain_verifier": settings.nvidia_model_domain_verifier or fallback,
+        "cross_domain_correlator": settings.nvidia_model_cross_domain_correlator or fallback,
+        "priority_assessor": settings.nvidia_model_priority_assessor or fallback,
+        "comms_generator": settings.nvidia_model_comms_generator or fallback,
+    }
 
 
 def _normalize_category(raw: str | None) -> str:
@@ -389,6 +401,7 @@ def make_priority_assessor_node(llm):
 
         prompt = f"""You are a crisis prioritization officer.
 Assign priority using direct impact, cross-domain dependency and real-time load.
+All textual outputs MUST be in Polish.
 
 Category: {category}
 Related categories: {related}
@@ -405,8 +418,8 @@ P1_CRITICAL, P2_HIGH, P3_MEDIUM, P4_LOW
 Return JSON only:
 {{
   "priority": "P1_CRITICAL | P2_HIGH | P3_MEDIUM | P4_LOW",
-  "reasoning": "short rationale",
-  "recommended_actions": ["action 1", "action 2", "action 3"]
+  "reasoning": "krotkie uzasadnienie po polsku",
+  "recommended_actions": ["zalecenie 1 po polsku", "zalecenie 2 po polsku", "zalecenie 3 po polsku"]
 }}"""
 
         try:
@@ -416,8 +429,12 @@ Return JSON only:
             logger.warning(f"Priority assessor LLM error: {exc}")
             result = {
                 "priority": "P2_HIGH",
-                "reasoning": f"Fallback due to LLM failure: {exc}",
-                "recommended_actions": ["Dispatch local services", "Run manual verification", "Issue preliminary alert"],
+                "reasoning": f"Fallback z powodu bledu LLM: {exc}",
+                "recommended_actions": [
+                    "Skierowac lokalne sluzby do obszaru zdarzenia",
+                    "Uruchomic reczna weryfikacje informacji",
+                    "Wydac wstepny komunikat ostrzegawczy",
+                ],
             }
             guard_info = {"blocked": False}
 
@@ -454,6 +471,7 @@ def make_comms_generator_node(llm):
 
         prompt = f"""You are a public crisis communication specialist.
 Generate two messages: operations message and citizen message.
+Both messages MUST be in Polish.
 
 Category: {state.get('category', 'unknown')}
 Related categories: {related}
@@ -466,10 +484,10 @@ Realtime load (15m): {realtime_load.get('incidents_in_window', 0)}
 
 Return JSON only:
 {{
-  "service_message": "technical operational message",
-  "citizen_message": "clear 2-3 sentence public message",
+  "service_message": "techniczny komunikat operacyjny po polsku",
+  "citizen_message": "jasny komunikat publiczny 2-3 zdania po polsku",
   "human_review_required": true,
-  "review_reason": "reason or null"
+  "review_reason": "powod po polsku lub null"
 }}"""
 
         try:
@@ -481,15 +499,15 @@ Return JSON only:
             result = {
                 "service_message": (
                     f"ALERT {priority} | {location_str} | "
-                    f"Category: {state.get('category', 'unknown')} | Related: {related} | "
-                    f"Credibility: {credibility_score:.0%} | Actions: {', '.join(actions)}"
+                    f"Kategoria: {state.get('category', 'unknown')} | Powiazane: {related} | "
+                    f"Wiarygodnosc: {credibility_score:.0%} | Dzialania: {', '.join(actions)}"
                 ),
                 "citizen_message": (
-                    f"Attention residents in {location_str}. Services are actively responding. "
-                    "Follow official updates and instructions from emergency authorities."
+                    f"Uwaga mieszkancy obszaru {location_str}. Sluzby aktywnie prowadza dzialania. "
+                    "Prosze sledzic oficjalne komunikaty i stosowac sie do polecen sluzb ratunkowych."
                 ),
                 "human_review_required": True,
-                "review_reason": f"Automatic generation fallback due to error: {exc}",
+                "review_reason": f"Automatyczny fallback z powodu bledu: {exc}",
             }
             guard_info = {"blocked": False}
 
@@ -497,7 +515,7 @@ Return JSON only:
         review_reason = result.get("review_reason")
         if credibility.get("credibility_score", 1.0) < 0.4:
             human_review_required = True
-            review_reason = review_reason or "Low credibility score (<40%)"
+            review_reason = review_reason or "Niska wiarygodnosc (<40%)"
 
         return {
             "service_message": result.get("service_message", ""),
@@ -528,20 +546,25 @@ async def _guarded_ainvoke(llm, prompt: str, context: str):
 
 
 def build_crisis_graph():
-    llm = _get_llm()
+    model_map = _agent_model_map()
+    llm_supervisor = _get_llm(model_map["supervisor"])
+    llm_domain_verifier = _get_llm(model_map["domain_verifier"])
+    llm_cross_domain = _get_llm(model_map["cross_domain_correlator"])
+    llm_priority = _get_llm(model_map["priority_assessor"])
+    llm_comms = _get_llm(model_map["comms_generator"])
     search_tool = get_search_tool()
 
     workflow = StateGraph(IncidentState)
 
-    workflow.add_node("supervisor", make_supervisor_node(llm))
-    workflow.add_node("flood_verifier", make_domain_verifier_node(llm, search_tool, "flood"))
-    workflow.add_node("cyber_verifier", make_domain_verifier_node(llm, search_tool, "cyber"))
-    workflow.add_node("terror_verifier", make_domain_verifier_node(llm, search_tool, "terror"))
-    workflow.add_node("infrastructure_verifier", make_domain_verifier_node(llm, search_tool, "infrastructure"))
-    workflow.add_node("traffic_verifier", make_domain_verifier_node(llm, search_tool, "traffic"))
-    workflow.add_node("cross_domain_correlator", make_cross_domain_correlator_node(llm))
-    workflow.add_node("priority_assessor", make_priority_assessor_node(llm))
-    workflow.add_node("comms_generator", make_comms_generator_node(llm))
+    workflow.add_node("supervisor", make_supervisor_node(llm_supervisor))
+    workflow.add_node("flood_verifier", make_domain_verifier_node(llm_domain_verifier, search_tool, "flood"))
+    workflow.add_node("cyber_verifier", make_domain_verifier_node(llm_domain_verifier, search_tool, "cyber"))
+    workflow.add_node("terror_verifier", make_domain_verifier_node(llm_domain_verifier, search_tool, "terror"))
+    workflow.add_node("infrastructure_verifier", make_domain_verifier_node(llm_domain_verifier, search_tool, "infrastructure"))
+    workflow.add_node("traffic_verifier", make_domain_verifier_node(llm_domain_verifier, search_tool, "traffic"))
+    workflow.add_node("cross_domain_correlator", make_cross_domain_correlator_node(llm_cross_domain))
+    workflow.add_node("priority_assessor", make_priority_assessor_node(llm_priority))
+    workflow.add_node("comms_generator", make_comms_generator_node(llm_comms))
 
     workflow.add_edge(START, "supervisor")
 
@@ -587,6 +610,7 @@ def build_crisis_graph():
 @lru_cache(maxsize=1)
 def get_graph():
     logger.info("Building CZK LangGraph workflow...")
+    logger.info(f"Per-agent model map: {_agent_model_map()}")
     graph = build_crisis_graph()
     logger.info("Graph ready.")
     return graph

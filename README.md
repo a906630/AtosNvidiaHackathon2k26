@@ -7,6 +7,7 @@ Wieloagentowy system wspierajacy centrum kryzysowe: **FastAPI + LangGraph + NVID
 - wyspecjalizowani agenci domenowi: `flood`, `cyber`, `terror`, `infrastructure`, `traffic`
 - orchestracja przez `supervisor -> domain_verifier -> cross_domain_correlator -> priority_assessor -> comms_generator`
 - **cross-domain correlator analizuje snapshot ostatnio dodanych incydentów** (do 25 rekordów) w celu wychwycenia korelacji i zależności między zgłoszeniami, nie tylko bieżące incydent
+- końcowe zalecenia (`recommended_actions`) oraz komunikaty (`service_message`, `citizen_message`) są generowane w języku polskim
 - metryki naplywu zgloszen w czasie rzeczywistym
 - analiza publicznych zrodel danych dla Polski
 - stack open-source (bez platnego search API)
@@ -31,6 +32,43 @@ Dzieki temu endpointy maja stabilny format odpowiedzi i lepsza dokumentacje Open
 - Zwraca w `cross_domain_relations.analyzed_recent_incidents` - ile incydentów zjadło analiza
 
 Dzięki temu corelator dostrzega wzorce całego systemu, a nie tylko izolowany incydent.
+
+## Modele per agent (NVIDIA NIM)
+
+Aplikacja używa backendu NVIDIA NIM (`NVIDIA_BASE_URL`) i pozwala przypisać osobny model do każdej roli agenta.
+
+### Rekomendacja modeli (jakość vs koszt)
+
+- `supervisor` -> `meta/llama-3.1-8b-instruct`
+  - szybka klasyfikacja i routing, niski koszt inferencji
+- `domain_verifier` -> `meta/llama-3.3-70b-instruct`
+  - najlepsza jakość syntezy OSINT i oceny wiarygodności sygnałów
+- `cross_domain_correlator` -> `meta/llama-3.1-70b-instruct`
+  - lepsze wnioskowanie relacyjne między wieloma incydentami
+- `priority_assessor` -> `meta/llama-3.1-70b-instruct`
+  - stabilniejsze decyzje priorytetyzacji na tle realtime load
+- `comms_generator` -> `meta/llama-3.1-70b-instruct`
+  - bardziej spójne komunikaty operacyjne i publiczne
+
+Modele mogą się powtarzać między agentami (to celowe i wspierane).
+
+### Konfiguracja ENV
+
+W `.env` możesz ustawić mapowanie agent -> model:
+
+```dotenv
+NVIDIA_BASE_URL=http://localhost:8000/v1
+NVIDIA_API_KEY=no-key
+NVIDIA_MODEL=meta/llama-3.3-70b-instruct
+
+NVIDIA_MODEL_SUPERVISOR=meta/llama-3.1-8b-instruct
+NVIDIA_MODEL_DOMAIN_VERIFIER=meta/llama-3.3-70b-instruct
+NVIDIA_MODEL_CROSS_DOMAIN_CORRELATOR=meta/llama-3.1-70b-instruct
+NVIDIA_MODEL_PRIORITY_ASSESSOR=meta/llama-3.1-70b-instruct
+NVIDIA_MODEL_COMMS_GENERATOR=meta/llama-3.1-70b-instruct
+```
+
+Jeśli nie ustawisz zmiennych per-agent, aplikacja użyje `NVIDIA_MODEL` jako fallback.
 
 ## Endpointy API
 
