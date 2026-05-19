@@ -1,62 +1,309 @@
-# CZK - Centrum Zarzadzania Kryzysowego
+# 🛡️ Sikor8 — Crisis Management Center
 
-Wieloagentowy system wspierajacy centrum kryzysowe: **FastAPI + LangGraph + NVIDIA NIM + open-source observability**.
+> Wieloagentowy system AI wspierający centrum zarządzania kryzysowego.
+> Zbudowany na **NVIDIA NIM + LangGraph + FastAPI** z pełną obserwowalnością i sceptycznym modelem weryfikacji wiarygodności.
 
-## Co jest zaimplementowane
+---
 
-- wyspecjalizowani agenci domenowi: `flood`, `cyber`, `terror`, `infrastructure`, `traffic`
-- orchestracja przez `supervisor -> domain_verifier -> cross_domain_correlator -> priority_assessor -> comms_generator`
-- **cross-domain correlator analizuje snapshot ostatnio dodanych incydentów** (do 25 rekordów) w celu wychwycenia korelacji i zależności między zgłoszeniami, nie tylko bieżące incydent
-- końcowe zalecenia (`recommended_actions`) oraz komunikaty (`service_message`, `citizen_message`) są generowane w języku polskim
-- metryki naplywu zgloszen w czasie rzeczywistym
-- analiza publicznych zrodel danych dla Polski
-- stack open-source (bez platnego search API)
+## 📐 Architektura systemu
 
-## Pydantic i standard serializacji
+```mermaid
+graph TB
+    subgraph "🖥️ Frontend"
+        DASH[Dashboard HTML/JS]
+        SSE[SSE Live Stream]
+    end
 
-Kontrakty API sa walidowane i serializowane przez modele z `app/schemas.py`:
+    subgraph "⚡ FastAPI Backend"
+        API[REST API :8080]
+        VIZ[Visualization API]
+        STORE[(In-Memory Store)]
+    end
 
-- `IncidentInput`, `IncidentResponse`, `IncidentResult`
-- `RealtimeLoad`
-- `MermaidGraphResponse`, `GraphJsonResponse`, `GraphRunPreviewResponse`
+    subgraph "🧠 LangGraph Multi-Agent Pipeline"
+        SUP[🎯 Supervisor Agent]
+        FV[🌊 Flood Verifier]
+        CV[💻 Cyber Verifier]
+        TV[🚨 Terror Verifier]
+        IV[🏗️ Infrastructure Verifier]
+        TRV[🚗 Traffic Verifier]
+        CDC[🔁 Cross-Domain Correlator]
+        PA[⚖️ Priority Assessor]
+        CG[📢 Comms Generator]
+    end
 
-Dzieki temu endpointy maja stabilny format odpowiedzi i lepsza dokumentacje OpenAPI.
+    subgraph "🟢 NVIDIA Stack"
+        NIM[NVIDIA NIM<br/>LLM Inference]
+        CUDA[CUDA Reranker<br/>sentence-transformers]
+        GPU[NVIDIA GPU<br/>L40S / A100 / T4]
+    end
 
-## Multi-incident correlation
+    subgraph "🔍 External Sources"
+        DDG[DuckDuckGo Search]
+        PUB[Polish Public Sources<br/>IMGW, CERT, RCB, GDDKiA]
+    end
 
-`cross_domain_correlator` node analizuje snapshot do 25 ostatnio dodanych incydentów ze store:
+    subgraph "🔭 Observability"
+        PHX[Arize Phoenix :6006<br/>Traces + Latency]
+        OTEL[OpenTelemetry SDK]
+    end
 
-- Wczytuje historię z `app/store.py::get_recent_incidents(limit=25)` na starcie przepływu
-- Buduje kontekst Multi-incydentowy w promptzie LLM
-- Wyświetla w diagnostyce: `processing_log[...].details.analyzed_recent_incidents`
-- Zwraca w `cross_domain_relations.analyzed_recent_incidents` - ile incydentów zjadło analiza
+    DASH -->|POST /api/v1/incidents| API
+    API --> SUP
+    SUP -->|fan-out| FV & CV & TV & IV & TRV
+    FV & CV & TV & IV & TRV --> CDC
+    CDC --> PA --> CG
+    CG -->|result| STORE
+    VIZ -->|SSE events| SSE
+    SSE --> DASH
 
-Dzięki temu corelator dostrzega wzorce całego systemu, a nie tylko izolowany incydent.
+    FV & CV & TV & IV & TRV -->|search queries| DDG
+    FV & CV & TV & IV & TRV -->|curated URLs| PUB
+    FV & CV & TV & IV & TRV -->|rerank results| CUDA
 
-## Modele per agent (NVIDIA NIM)
+    SUP & FV & CV & TV & IV & TRV & CDC & PA & CG -->|LLM inference| NIM
+    NIM --> GPU
+    CUDA --> GPU
 
-Aplikacja używa backendu NVIDIA NIM (`NVIDIA_BASE_URL`) i pozwala przypisać osobny model do każdej roli agenta.
+    API & SUP & FV & CV & TV & IV & TRV & CDC & PA & CG -->|traces| OTEL --> PHX
+```
 
-### Rekomendacja modeli (jakość vs koszt)
+---
 
-- `supervisor` -> `meta/llama-3.1-8b-instruct`
-  - szybka klasyfikacja i routing, niski koszt inferencji
-- `domain_verifier` -> `meta/llama-3.3-70b-instruct`
-  - najlepsza jakość syntezy OSINT i oceny wiarygodności sygnałów
-- `cross_domain_correlator` -> `meta/llama-3.1-70b-instruct`
-  - lepsze wnioskowanie relacyjne między wieloma incydentami
-- `priority_assessor` -> `meta/llama-3.1-70b-instruct`
-  - stabilniejsze decyzje priorytetyzacji na tle realtime load
-- `comms_generator` -> `meta/llama-3.1-70b-instruct`
-  - bardziej spójne komunikaty operacyjne i publiczne
+## 🔄 Przepływ przetwarzania incydentu
 
-Modele mogą się powtarzać między agentami (to celowe i wspierane).
+```mermaid
+sequenceDiagram
+    actor User as 👤 Operator / Obywatel
+    participant API as ⚡ FastAPI
+    participant SUP as 🎯 Supervisor
+    participant NIM as 🟢 NVIDIA NIM
+    participant VER as 🔍 Domain Verifiers (×5)
+    participant DDG as 🌐 DuckDuckGo
+    participant CUDA as 🖥️ CUDA Reranker
+    participant CRED as 📊 Credibility Model
+    participant CDC as 🔁 Cross-Domain Correlator
+    participant PRI as ⚖️ Priority Assessor
+    participant COM as 📢 Comms Generator
+    participant DASH as 🖥️ Dashboard
 
-### Konfiguracja ENV
+    User->>API: POST /api/v1/incidents
+    API->>SUP: Przekaż incydent
+    SUP->>NIM: Klasyfikuj kategorię
+    NIM-->>SUP: {category: "flood", related: ["infrastructure"]}
+    SUP->>VER: Fan-out do wybranych verifierów
 
-W `.env` możesz ustawić mapowanie agent -> model:
+    par Parallel Verification
+        VER->>DDG: Zapytania wyszukiwania (×8)
+        DDG-->>VER: Surowe wyniki
+        VER->>CUDA: Reranking (GPU accelerated)
+        CUDA-->>VER: Top-K wyniki
+        VER->>CRED: Compute credibility score
+        CRED-->>VER: {score: 0.25, risk: 0.55}
+        VER->>NIM: Krytyczna analiza snippetów
+        NIM-->>VER: {credibility_score, reasoning}
+        VER->>CRED: Bound LLM output
+        CRED-->>VER: Bounded score [min, max]
+    end
+
+    VER->>CDC: Wyniki weryfikacji
+    CDC->>NIM: Analiza cross-domain (25 recent incidents)
+    NIM-->>CDC: {dependency_graph, related_categories}
+
+    CDC->>PRI: Credibility + correlations
+    PRI->>NIM: Priorytetyzacja z sanity checks
+    NIM-->>PRI: {priority: "P3_MEDIUM"}
+
+    PRI->>COM: Priority + recommended_actions
+    COM->>NIM: Generuj komunikaty (PL)
+    NIM-->>COM: {service_message, citizen_message}
+
+    COM-->>API: Pełny wynik
+    API-->>DASH: SSE stream events
+    DASH-->>User: 🎉 Wynik na dashboardzie
+```
+
+---
+
+## 🟢 NVIDIA Technology Stack
+
+### NVIDIA NIM (Neural Inference Microservice)
+
+| Komponent | Rola | Szczegóły |
+|---|---|---|
+| **NVIDIA NIM** | Inferencja LLM | Lokalna lub chmurowa inferencja modeli Meta Llama |
+| **Per-agent routing** | Optymalizacja | Każdy agent może korzystać z innego modelu NIM |
+| **Automatic fallback** | Resilience | Przy 404 model_not_found → automatyczny retry z katalogiem NIM |
+| **Model catalog** | Discovery | `GET /v1/models` — automatyczne mapowanie dostępnych modeli |
+
+```mermaid
+graph LR
+    subgraph "NVIDIA NIM Endpoint (:8000)"
+        CATALOG[Model Catalog API]
+        LLM8B[meta/llama-3.1-8b-instruct<br/>⚡ Fast · Low cost]
+        LLM70B[meta/llama-3.3-70b-instruct<br/>🎯 High quality]
+    end
+
+    SUP[Supervisor] -->|fast classification| LLM8B
+    VER[Domain Verifiers] -->|deep analysis| LLM70B
+    CDC[Correlator] -->|multi-incident reasoning| LLM70B
+    PRI[Priority Assessor] -->|stable decisions| LLM8B
+    COM[Comms Generator] -->|Polish text gen| LLM8B
+
+    APP[App Startup] -->|resolve models| CATALOG
+```
+
+### NVIDIA CUDA — GPU-Accelerated Reranking
+
+Moduł `app/agents/cuda_utils.py` implementuje **CUDA-accelerated semantic reranking**:
+
+```mermaid
+graph LR
+    RAW[Surowe wyniki wyszukiwania<br/>8-16 snippetów] -->|GPU inference| RERANKER[sentence-transformers<br/>cross-encoder on CUDA]
+    RERANKER -->|Top-K sorted| TOP[Top 4 najistotniejsze<br/>snippety]
+    TOP --> LLM[LLM Verifier<br/>via NVIDIA NIM]
+
+    style RERANKER fill:#76b900,color:#000
+```
+
+- **Model**: `cross-encoder/ms-marco-MiniLM-L-6-v2` na GPU
+- **Zadanie**: Reranking wyników DuckDuckGo wg relevancji do opisu incydentu
+- **Hardware**: Wykrywa CUDA automatycznie, fallback na CPU
+- **Wpływ**: Eliminuje szum z wyników wyszukiwania zanim trafią do LLM
+
+### NVIDIA GPU Requirements
+
+| Profil | GPU | VRAM | Rekomendacja |
+|---|---|---|---|
+| **Minimum** | T4 | 16 GB | Tylko 8B modele |
+| **Rekomendowany** | L40S | 48 GB | 8B + 70B mixed routing |
+| **Optymalny** | A100 | 80 GB | Pełny 70B dla wszystkich agentów |
+
+### Integracja z NVIDIA Brev
+
+```mermaid
+graph TB
+    subgraph "NVIDIA Brev Instance (L40S)"
+        NIM_HOST[NVIDIA NIM :8000<br/>meta/llama-3.3-70b]
+        subgraph "Docker Container"
+            APP[Sikor8 API :8080]
+            PHX[Phoenix :6006]
+            CUDA_RE[CUDA Reranker]
+        end
+        GPU[L40S GPU 48GB VRAM]
+    end
+
+    APP -->|host.docker.internal:8000| NIM_HOST
+    NIM_HOST --> GPU
+    CUDA_RE --> GPU
+    
+    USER[👤 Remote User] -->|port forward :8080| APP
+    USER -->|port forward :6006| PHX
+```
+
+---
+
+## 📊 Sceptyczny model weryfikacji wiarygodności
+
+System implementuje philosophy **"START SKEPTICAL — EARN TRUST"**:
+
+```mermaid
+graph TD
+    INC[📥 Incydent] --> BASE[Baseline: 10%<br/>Każde zgłoszenie startuje nisko]
+    BASE --> SEARCH[🔍 Wyszukiwanie publicznych źródeł]
+    
+    SEARCH -->|brak wyników| LOW[❌ Max 25%<br/>Brak niezależnej weryfikacji]
+    SEARCH -->|1 źródło| MED_LOW[⚠️ Max 50%<br/>Ograniczona koroboracja]
+    SEARCH -->|2+ niezależne źródła| ANALYZE[📊 Analiza koherencji]
+    
+    ANALYZE -->|echo wyszukiwarki| ECHO[Echo penalty<br/>Wynik × 0.25]
+    ANALYZE -->|nowe szczegóły w źródłach| CORR[✅ Corroboration bonus<br/>overlap + new_info]
+    
+    ECHO --> BOUNDED[🔒 LLM Bounds<br/>Constraining hallucinated confidence]
+    CORR --> BOUNDED
+    
+    BOUNDED --> FINAL[Final credibility score]
+    FINAL -->|< 35%| P4[P4_LOW priority]
+    FINAL -->|35-50%| P3[P3_MEDIUM priority]
+    FINAL -->|50-75%| P2[P2_HIGH priority]
+    FINAL -->|> 75% + corroborated| P1[P1_CRITICAL priority]
+
+    style BASE fill:#7f1d1d,color:#fca5a5
+    style LOW fill:#7f1d1d,color:#fca5a5
+    style CORR fill:#14532d,color:#86efac
+    style P1 fill:#7f1d1d,color:#fca5a5
+    style P4 fill:#14532d,color:#86efac
+```
+
+### Kluczowe mechanizmy anty-zawyżania
+
+| Mechanizm | Opis |
+|---|---|
+| **Low baseline (10%)** | Niezweryfikowane zgłoszenie startuje na minimum |
+| **Echo detection** | Wyniki wyszukiwania powtarzające query ≠ niezależna weryfikacja |
+| **New info requirement** | True corroboration wymaga NOWYCH szczegółów w źródłach |
+| **Evidence caps** | 0 wyników → max 25%, 1 wynik → max 50% |
+| **LLM bounds** | Output LLM ograniczony do [min, max] wg ilości evidence |
+| **Deepfake risk** | Startuje wysoko (55%), spada tylko z corroboration |
+| **Priority sanity check** | Niska wiarygodność + wysoki deepfake risk → max P3 |
+
+---
+
+## 🛠️ Wykorzystywane technologie
+
+### NVIDIA Ecosystem
+
+| Technologia | Zastosowanie |
+|---|---|
+| **NVIDIA NIM** | Inferencja LLM (Llama 3.1/3.3) — lokalna lub cloud |
+| **NVIDIA CUDA** | GPU-accelerated semantic reranking |
+| **NVIDIA Brev** | Hosting instancji z GPU (L40S) |
+| **NVIDIA Container Toolkit** | Docker + GPU passthrough |
+| **langchain-nvidia-ai-endpoints** | Python SDK do NIM API |
+
+### AI / ML Stack
+
+| Technologia | Zastosowanie |
+|---|---|
+| **LangGraph** | Orchestracja multi-agent workflow z fan-out/fan-in |
+| **LangChain** | Abstrakcja LLM calls + tool integration |
+| **sentence-transformers** | Cross-encoder reranking na GPU |
+| **PyTorch (CUDA)** | Runtime dla modeli reranking |
+
+### Application Stack
+
+| Technologia | Zastosowanie |
+|---|---|
+| **FastAPI** | REST API + SSE streaming + OpenAPI docs |
+| **Pydantic v2** | Walidacja schematów, typed contracts |
+| **DuckDuckGo Search** | Open-source OSINT (zero API keys) |
+| **Arize Phoenix** | Observability — traces, latency, token usage |
+| **OpenTelemetry** | Distributed tracing SDK |
+
+### Infrastructure
+
+| Technologia | Zastosowanie |
+|---|---|
+| **Docker** | Konteneryzacja z NVIDIA runtime |
+| **Docker Compose** | Orchestracja usług |
+| **CUDA 12.4 + cuDNN** | Base image (`nvidia/cuda:12.4.1-cudnn-runtime`) |
+
+---
+
+## 🏗️ Modele per agent (NVIDIA NIM)
+
+Aplikacja pozwala przypisać osobny model NIM do każdego agenta:
+
+| Agent | Rekomendowany model | Uzasadnienie |
+|---|---|---|
+| `supervisor` | `meta/llama-3.1-8b-instruct` | Szybka klasyfikacja, niski koszt |
+| `domain_verifier` | `meta/llama-3.3-70b-instruct` | Najlepsza jakość analizy OSINT |
+| `cross_domain_correlator` | `meta/llama-3.1-70b-instruct` | Wnioskowanie relacyjne multi-incident |
+| `priority_assessor` | `meta/llama-3.1-8b-instruct` | Stabilne decyzje z sanity checks |
+| `comms_generator` | `meta/llama-3.1-8b-instruct` | Szybkie generowanie komunikatów PL |
 
 ```dotenv
+# .env
 NVIDIA_BASE_URL=http://localhost:8000/v1
 NVIDIA_API_KEY=no-key
 NVIDIA_MODEL=meta/llama-3.3-70b-instruct
@@ -64,121 +311,53 @@ NVIDIA_MODEL=meta/llama-3.3-70b-instruct
 NVIDIA_MODEL_SUPERVISOR=meta/llama-3.1-8b-instruct
 NVIDIA_MODEL_DOMAIN_VERIFIER=meta/llama-3.3-70b-instruct
 NVIDIA_MODEL_CROSS_DOMAIN_CORRELATOR=meta/llama-3.1-70b-instruct
-NVIDIA_MODEL_PRIORITY_ASSESSOR=meta/llama-3.1-70b-instruct
-NVIDIA_MODEL_COMMS_GENERATOR=meta/llama-3.1-70b-instruct
+NVIDIA_MODEL_PRIORITY_ASSESSOR=meta/llama-3.1-8b-instruct
+NVIDIA_MODEL_COMMS_GENERATOR=meta/llama-3.1-8b-instruct
 ```
 
-Jeśli nie ustawisz zmiennych per-agent, aplikacja użyje `NVIDIA_MODEL` jako fallback.
+---
 
-## Formalna warstwę operacyjna (Pydantic Agentic Architecture)
+## 🌐 Publiczne źródła danych (Polska)
 
-Projekt wdraża formalne Pydantic modele zgodnie ze specyfikacją *Pydantic-Based Agentic Crisis Management System*:
+| Domena | Źródła |
+|---|---|
+| 🌊 Flood | IMGW, RCB, Hydroportal, X (#powódź) |
+| 💻 Cyber | CERT Polska, CSIRT GOV, NASK, Zaufana Trzecia Strona |
+| 🚨 Terror | RCB, ABW, Policja, komunikaty państwowe |
+| 🏗️ Infrastructure | GDDKiA, PKP PLK, PSE, dane.gov.pl |
+| 🚗 Traffic | GDDKiA mapa dróg, API UM Warszawa, Jakdojade |
 
-### Sformalizowane kontrakty
+---
 
-- `SeverityLevel` — enum(low, medium, high, critical) dla kategoryzacji ważności
-- `VerificationStatus` — enum(unverified, probable, verified, false_positive) dla statusu weryfikacji
-- `SeverityFactors` — typed cechy wpływające na ważność (populacja, infrastruktura, czas trwania, ryzyko)
-- `CascadingImpact` — prognoza wpływu na systemy zależne z szacowanym czasem i pewnością
-- `Recommendation` — zalecenie z action + rationale + priority + approval_required
-- `HumanApproval` — formalne zatwierdzenie z approver_id, role, cyfrową sygnaturą i czasem
-- `SituationReport` — executive summary (SITREP) z unresolved_decisions i recommended_actions_awaiting_approval
+## 🔗 Endpointy API
 
-### Deterministyczny scoring severity
+### Incidents
+| Method | Endpoint | Opis |
+|---|---|---|
+| `POST` | `/api/v1/incidents` | Przyjęcie zgłoszenia |
+| `GET` | `/api/v1/incidents` | Lista zgłoszeń |
+| `GET` | `/api/v1/incidents/{id}/result` | Wynik analizy |
+| `GET` | `/api/v1/metrics/live` | Metryki realtime |
+| `POST` | `/api/v1/incidents/{id}/approve` | Approval gate |
+| `GET` | `/api/v1/incidents/{id}/approvals` | Historia zatwierdzeń |
 
-Moduł `app/agents/severity_engine.py` implementuje deterministyczny scoring na podstawie:
-
-```
-Score = (pop * 0.25 + infrastructure * 0.30 + duration * 0.15 + cascading * 0.20 + geographic * 0.10) * 100
-```
-
-**Progi klasyfikacji:**
-- CRITICAL: >= 75
-- HIGH: >= 50
-- MEDIUM: >= 25
-- LOW: < 25
-
-Dzięki temu LLM agent tłumaczy faktory, ale scoring jest **niezależny od hallucynacji LLM**.
-
-## Wdrożone elementy ze specyfikacji Pydantic Agentic Crisis Management
-
-Z dokumentu *Pydantic-Based Agentic Crisis Management System* wdrożono:
-
-✅ **Warstwę operacyjną (Operational Contract Layer)**
-- Sformalizowane schematy Pydantic dla wszystkich wejść/wyjść
-- Enums dla `SeverityLevel`, `VerificationStatus`
-- Structured models dla `SeverityFactors`, `CascadingImpact`, `Recommendation`, `HumanApproval`
-- `SituationReport` (SITREP) dla executive summary
-
-✅ **Warstwę inteligencji (Intelligence Layer)**
-- Wieloagentowa architektura (supervisr + verifiers + correlator + priority + comms)
-- Alle agenty zwracają typed responses, nie raw text
-
-✅ **Warstwę człowieka (Authority Layer)**
-- Approval gates dla krytycznych akcji (`/approve` endpoint)
-- Historia zatwierdzeń z `approver_id`, `approver_role`, `decision_notes`
-- `requires_human_approval` flag na rekomendacjach
-
-✅ **Deterministyczne scoring**
-- `SeverityScoringEngine` z wbudowanymi wagami
-- Niezależny od LLM scoring severity
-
-⚠️ **Nie wdrożono (z powodu zakresu hackatonu):**
-- Event streaming (Kafka) — zamiast: SSE + in-memory store
-- Vector DB (pgvector) — zamiast: CUDA semantic reranker
-- Graph DB (Neo4j) — zamiast: LangGraph state
-- Cyber AI (NVIDIA Morpheus) — zamiast: общих domain verifier
-- Omniverse simulation — zamiast: strukturalna prognoza wpływów
-- Policy engine (OPA) — zamiast: fallback regex guardrails
-
-## Endpointy API
-
-### Incident API
-
-- `POST /api/v1/incidents` - przyjecie zgloszenia
-- `GET /api/v1/incidents/{incident_id}/result` - finalny wynik
-- `GET /api/v1/incidents` - lista zgloszen
-- `GET /api/v1/metrics/live?window_minutes=15` - metryki realtime
-- `POST /api/v1/incidents/{incident_id}/approve` - formalne zatwierdzenie (approval gate)
-- `GET /api/v1/incidents/{incident_id}/approvals` - historia zatwierdzeń
-- `GET /api/v1/incidents/{incident_id}/recommendations` - rekomendacje czekające na zatwierdzenie
-
-### Visualization API
-
-- `GET /viz/stream/{incident_id}` - live SSE z krokow agentow
-- `GET /viz/graph` - topologia jako Mermaid
-- `GET /viz/graph/json` - topologia jako JSON (nodes + edges)
-- `GET /viz/output/{incident_id}` - podglad danych wyjsciowych jako JSON
+### Visualization
+| Method | Endpoint | Opis |
+|---|---|---|
+| `GET` | `/viz/stream/{id}` | SSE live stream agentów |
+| `GET` | `/viz/graph` | Topologia Mermaid |
+| `GET` | `/viz/graph/json` | Topologia JSON |
 
 ### System
+| Method | Endpoint | Opis |
+|---|---|---|
+| `GET` | `/health` | Status + GPU info + tracing URL |
 
-- `GET /health` - status systemu + GPU info + tracing URL
+---
 
-## Troubleshooting (NVIDIA NIM + guardrails)
+## 🚀 Uruchomienie
 
-- `LLM Guard unavailable: No module named 'llm_guard'`
-  - oznacza brak pakietu `llm-guard`; aplikacja przechodzi wtedy na regex fallback
-  - po instalacji zależności (`pip install -r requirements.txt`) pełny pipeline guardrails powinien działać
-- `Correlator LLM error: [404] Not Found`
-  - zwykle oznacza model niedostępny na danej instancji NIM
-  - sprawdź katalog modeli: `GET /v1/models` i dopasuj `.env`
-  - aplikacja waliduje mapowanie agent->model i próbuje fallback do `NVIDIA_MODEL`
-  - dodatkowo przy `404 model_not_found` wykonywany jest retry z modelem fallbackowym
-- brak widocznych zapytań do mediów/search w logach
-  - domain verifiers logują teraz każde zapytanie i status odpowiedzi (`[flood_verifier] search query: ...`)
-  - jeśli widzisz `search-tool-unavailable`, środowisko nie ma działającego backendu wyszukiwania
-
-## Publiczne zrodla danych (Polska)
-
-Przykladowe zrodla z katalogu `app/data/public_sources.py`:
-
-- powodzie: IMGW, RCB, Hydroportal, sygnaly X
-- cyber: CERT Polska, CSIRT GOV, NASK, Zaufana Trzecia Strona
-- terror: RCB, ABW, Policja, komunikaty panstwowe
-- infrastruktura: GDDKiA, PKP PLK, PSE, dane.gov.pl
-- ruch: GDDKiA mapa drog, API UM Warszawa, Jakdojade
-
-## Uruchomienie lokalne
+### Lokalne
 
 ```bash
 pip install torch --index-url https://download.pytorch.org/whl/cu124
@@ -186,229 +365,86 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Po starcie:
-
-- app: `http://localhost:8080`
-- docs: `http://localhost:8080/docs`
-- traces (Phoenix): `http://localhost:6006`
-
-## Uruchomienie w Docker (GPU)
-
-W repo są gotowe pliki: `Dockerfile`, `.dockerignore`, `docker-compose.yml`.
-
-### Build obrazu
+### Docker
 
 ```bash
-docker build -t czk-api:latest .
-```
-
-### Run kontenera (GPU + host NIM)
-
-> Dla scenariusza, gdzie NIM działa na hoście Brev na porcie `8000`.
-
-```bash
-docker run --rm -it \
-  --gpus all \
-  --network host \
-  --env-file .env \
-  -e APP_PORT=8080 \
-  -e NVIDIA_BASE_URL=http://localhost:8000/v1 \
-  czk-api:latest
-```
-
-API będzie wtedy dostępne na `http://localhost:8080`.
-
-### Alternatywa: docker compose
-
-`docker-compose.yml` mapuje port `8080` dla API i `6006` dla Phoenix.
-Jeśli NIM działa na hoście Linux/Brev, ustaw w `.env`:
-
-`NVIDIA_BASE_URL=http://host.docker.internal:8000/v1`
-
-Następnie uruchom:
-
-```bash
+cp .env.example .env
+# edytuj .env (ustaw NVIDIA_BASE_URL)
 docker compose up --build
 ```
 
-### Skróty przez Makefile
-
-Repo zawiera `Makefile`, który opakowuje najczęstsze komendy Docker Compose.
+### NVIDIA Brev (L40S)
 
 ```bash
-make build
-make up-d
-make logs
-make smoke
-make down
+git clone <repo>
+cd NvidiaHackathon2k26
+cp .env.example .env
+# Upewnij się że NIM odpowiada: curl http://localhost:8000/v1/models
+docker build -t czk-api:latest .
+docker run --gpus all --network host --env-file .env czk-api:latest
+```
+
+Po starcie:
+- 🖥️ Dashboard: `http://localhost:8080/static/dashboard.html`
+- 📄 API Docs: `http://localhost:8080/docs`
+- 🔭 Phoenix Traces: `http://localhost:6006`
+
+---
+
+## 📁 Struktura projektu
+
+```text
+main.py                          # FastAPI entrypoint
+requirements.txt                 # Dependencies (NVIDIA, LangGraph, CUDA)
+Dockerfile                       # nvidia/cuda:12.4.1-cudnn base image
+docker-compose.yml               # GPU container orchestration
+langgraph.json                   # LangGraph Studio config
+.env.example                     # Konfiguracja NVIDIA NIM + app
+
+app/
+  config.py                      # Pydantic settings (NVIDIA NIM config)
+  store.py                       # In-memory incident store
+  observability.py               # Arize Phoenix + OpenTelemetry setup
+  schemas.py                     # Pydantic API contracts
+  agents/
+    graph.py                     # LangGraph workflow (9 nodes, fan-out)
+    state.py                     # TypedDict state schema
+    tools.py                     # DuckDuckGo search tool
+    cuda_utils.py                # CUDA reranker (sentence-transformers)
+    credibility_model.py         # Skeptical credibility scoring engine
+    severity_engine.py           # Deterministic severity scoring
+  api/
+    incidents.py                 # Incident CRUD + metrics
+    visualization.py             # SSE streaming + graph topology
+  data/
+    public_sources.py            # Polish OSINT source catalog
+  security/
+    prompt_guard.py              # LLM guardrails (regex + llm-guard)
+
+static/
+  dashboard.html                 # Real-time operator dashboard
+  images/                        # Credibility visualization assets
+
+examples/
+  send_incidents.py              # Batch incident sender
+  incidents/                     # 50 realistic crisis scenarios (5 categories × 10)
 ```
 
 ---
 
-## Deployment na NVIDIA Brev (L40S) - krok po kroku
-
-Poniższe kroki zakładają, że instancja ma dostęp do internetu i GPU.
-
-### Krok 1 - wybierz instancję
-
-Minimalny rekomendowany profil dla tego projektu: **1x L40S**.
-
-Dlaczego L40S:
-
-1. Dużo lepszy zapas VRAM niż T4/L4 dla większych modeli NIM.
-2. Stabilniejsza latencja przy równoległych requestach agentów.
-3. Lepszy margines dla dodatkowego obciążenia (np. reranking CUDA).
-
-### Krok 2 - przygotuj środowisko
+## 🧪 Testowanie
 
 ```bash
-git clone {{repo_address}}
-cd NvidiaHackathon2k26
-cp .env.example .env
-```
+# Unit test modelu credibility
+python test_credibility_model.py
 
-### Krok 3 - uruchom NIM na hoście Brev
+# Wyślij 50 przykładowych incydentów
+python examples/send_incidents.py
 
-Upewnij się, że lokalny endpoint NIM odpowiada na porcie `8000` (lub dostosuj port).
-
-Przykład szybkiej weryfikacji:
-
-```bash
-curl http://localhost:8000/v1/models
-```
-
-### Krok 4 - zbuduj obraz aplikacji
-
-```bash
-docker build -t czk-api:latest .
-```
-
-### Krok 5 - uruchom kontener aplikacji na L40S
-
-W trybie host-network `localhost:8000` wskazuje hostowy NIM, a API uruchamiamy na `8080`, by uniknąć konfliktu portów.
-
-```bash
-docker run --rm -it \
-  --gpus all \
-  --network host \
-  --env-file .env \
-  -e APP_PORT=8080 \
-  -e NVIDIA_BASE_URL=http://localhost:8000/v1 \
-  czk-api:latest
-```
-
-### Krok 6 - smoke test
-
-```bash
+# Smoke test
 curl http://localhost:8080/health
 curl http://localhost:8080/viz/graph/json
 ```
-
-W odpowiedzi `/health` sprawdź:
-
-- `status: ok`
-- `gpu.cuda_available: true` (jeśli środowisko ma poprawnie podpięte GPU)
-- poprawny `nvidia_base_url`
-
-### Krok 7 - wariant z docker compose
-
-W `.env` ustaw URL do hosta:
-
-`NVIDIA_BASE_URL=http://host.docker.internal:8000/v1`
-
-```bash
-docker compose up --build
-```
-
-### Krok 8 - operacyjnie (rekomendacje)
-
-1. Wlacz forward portow: `8080` (API), `6006` (Phoenix).
-2. Trzymaj `APP_DEBUG=false` poza demo.
-3. Przenies in-memory store do Redis/PostgreSQL przy dluzszym uzyciu.
-4. Dla wiekszego ruchu uruchamiaj przez process manager (np. `gunicorn` + `uvicorn workers`).
-
-## Struktura projektu
-
-```text
-main.py
-requirements.txt
-.env.example
-Makefile
-Dockerfile
-.dockerignore
-docker-compose.yml
-langgraph.json
-app/
-  config.py
-  store.py
-  observability.py
-  schemas.py
-  data/
-    public_sources.py
-  agents/
-    state.py
-    tools.py
-    cuda_utils.py
-    severity_engine.py
-    graph.py
-  api/
-    incidents.py
-    visualization.py
-static/
-  dashboard.html
-```
-
-## Przykładowe incydenty (Testing & Demo)
-
-Folder `examples/` zawiera 50 realistycznych scenariuszy kryzysowych podzielonych na 5 kategorii:
-
-- **flood/** → 10 scenariuszy powodzi (Odra, Wisła, burze)
-- **cyber/** → 10 scenariuszy cyberataków (ransomware, DDoS, phishing)
-- **terror/** → 10 scenariuszy zagrożeń terrorystycznych (bomby, CBRN)
-- **infrastructure/** → 10 scenariuszy awarii infrastruktury (prąd, woda, mosty)
-- **traffic/** → 10 scenariuszy incydentów drogowych (wypadki, zatory)
-
-### Szybki start z przykładami
-
-1. Upewnij się, że API działa:
-```bash
-python main.py
-```
-
-2. W osobnym terminalu wyślij wszystkie incydenty:
-```bash
-python examples/send_incidents.py
-```
-
-   **Output z nowymi logami:**
-   ```
-   ==================================================
-   [14:23:45] ℹ️  Znaleziono 50 incydentów do wysłania
-   [14:23:45] ℹ️  Adres API: http://localhost:8080
-   [14:23:45] ℹ️  [1/50] Przetwarzanie...
-   [14:23:46] ✅ flood_01.json → incident_a1b2c3d4
-   [14:23:46] ✅ flood_02.json → incident_x5y6z7w8
-   ...
-   [14:24:30] ✅ Wysłano 50 incydentów
-   [14:24:30] ℹ️  Powodzenie: 50 | Błędy: 0
-   ==================================================
-   ```
-
-3. Monitoruj SSE stream incydentu:
-```bash
-curl http://localhost:8080/viz/stream/{incident_id}
-```
-
-4. **W dashboardzie** — nowa funkcjonalność przełączania między incydentami:
-   - Przejdź do `http://localhost:8080`
-   - Sekcja "🔄 Przełącz incydent" pokazuje listę wszystkich wysłanych incydentów
-   - Kliknij na incydent, aby załadować jego SSE stream i wyświetlić wyniki
-   - Przycisk "🔄 Odśwież" aktualizuje listę co 10 sekund automatycznie
-
-5. **Obserwuj traces w Phoenix**:
-   - `http://localhost:6006`
-   - Każdy incydent pojawia się jako trace z waterfall LLM calls, latencjami i tokenami
-   - Arize Phoenix jest uruchamiane automatycznie w `app/observability.py`
 
 Szczegółowe instrukcje: [examples/README.md](examples/README.md)
 
