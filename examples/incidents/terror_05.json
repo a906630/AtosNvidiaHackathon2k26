@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T13:45:00Z",
+  "location": {
+    "voivodeship": "wielkopolskie",
+    "county": "poznanski",
+    "municipality": "Poznan",
+    "coordinates": {
+      "lat": 52.4064,
+      "lon": 16.9252
+    }
+  },
+  "category_hint": "terror",
+  "description": "Alert dużego zgromadzenia w pobliżu zabytkowej witryny. Intelijen sugeruje potencjalne zagrożenie bezpieczeństwa. Rozmieszczenie policji prewencyjnej i środki kontroli tłumu zainicjowane.",
+  "source": {
+    "type": "sensor",
+    "reporter_id": "cctv_monitoring_005",
+    "channel": "automated_system"
+  },
+  "media_refs": []
+}

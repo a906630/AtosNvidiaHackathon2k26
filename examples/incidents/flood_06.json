@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-05-19T14:10:00Z",
+  "location": {
+    "voivodeship": "kujawsko-pomorskie",
+    "county": "torunski",
+    "municipality": "Torun",
+    "coordinates": {
+      "lat": 53.0136,
+      "lon": 18.5952
+    }
+  },
+  "category_hint": "flood",
+  "description": "Intensywne powodzie błyskawiczne w starej dzielnicy miasta z powodu pęknięcia głównej rury wodnej. Wiele budynków zagrożonych, naprawy awaryjne trwają.",
+  "source": {
+    "type": "citizen",
+    "reporter_id": "resident_006",
+    "channel": "mobile_app"
+  },
+  "media_refs": [
+    {
+      "type": "photo",
+      "url": "https://example.com/torun_flood.jpg"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T09:15:00Z",
+  "location": {
+    "voivodeship": "wielkopolskie",
+    "county": "poznanski",
+    "municipality": "Poznan",
+    "coordinates": {
+      "lat": 52.4064,
+      "lon": 16.9252
+    }
+  },
+  "category_hint": "cyber",
+  "description": "Kampania phishingu skierowana na pracowników szpitala ze złośliwym oprogramowaniem do kradzieży danych. Dwa konta administracyjne skompromitowane, dane pacjentów zagrożone.",
+  "source": {
+    "type": "sensor",
+    "reporter_id": "email_gateway_003",
+    "channel": "automated_system"
+  },
+  "media_refs": []
+}

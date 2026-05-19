@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T15:30:00Z",
+  "location": {
+    "voivodeship": "podlaskie",
+    "county": "bialostocki",
+    "municipality": "Bialystok",
+    "coordinates": {
+      "lat": 53.1304,
+      "lon": 23.1688
+    }
+  },
+  "category_hint": "terror",
+  "description": "Wiadomość z pogróżkami skierowana do prywatnej szkoły. Odpowiedź policji zainicjowana, uczniowie ewakuowani do bezpiecznej lokacji.",
+  "source": {
+    "type": "citizen",
+    "reporter_id": "school_principal_007",
+    "channel": "mobile_app"
+  },
+  "media_refs": []
+}

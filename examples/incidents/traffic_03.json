@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T09:00:00Z",
+  "location": {
+    "voivodeship": "pomerskie",
+    "county": "gdanski",
+    "municipality": "Gdansk",
+    "coordinates": {
+      "lat": 54.352,
+      "lon": 18.6466
+    }
+  },
+  "category_hint": "traffic",
+  "description": "Awaria ciężarówki na porcie na drodze dostępu. Pojazd nieruchomy, usługi holowania wspierają. Dostępny tylko jeden pas do przejęcia, operacje portowe dotkliwe.",
+  "source": {
+    "type": "citizen",
+    "reporter_id": "truck_driver_003",
+    "channel": "mobile_app"
+  },
+  "media_refs": []
+}

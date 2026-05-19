@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T14:00:00Z",
+  "location": {
+    "voivodeship": "kujawsko-pomorskie",
+    "county": "torunski",
+    "municipality": "Torun",
+    "coordinates": {
+      "lat": 53.0136,
+      "lon": 18.5952
+    }
+  },
+  "category_hint": "infrastructure",
+  "description": "Przepełnienie oczyszczalni ścieków z powodu ulewnych opadów. Rezerwowy system grozi obszarom mieszkalnym, tymczasowe tamy w budowie.",
+  "source": {
+    "type": "sensor",
+    "reporter_id": "sewage_flow_006",
+    "channel": "automated_system"
+  },
+  "media_refs": []
+}

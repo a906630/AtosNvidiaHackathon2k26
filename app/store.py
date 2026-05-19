@@ -11,6 +11,8 @@ import uuid
 
 _incidents: dict[str, dict] = {}
 _results: dict[str, dict] = {}
+_approvals: dict[str, list[dict]] = {}
+_recommendations: dict[str, list[dict]] = {}
 
 
 def _parse_ts(ts: str | None) -> datetime:
@@ -38,6 +40,30 @@ def store_result(incident_id: str, result: dict) -> None:
 
 def get_result(incident_id: str) -> Optional[dict]:
     return _results.get(incident_id)
+
+
+def store_approval(incident_id: str, approval: dict) -> None:
+    """Store a formal human approval for an incident action."""
+    if incident_id not in _approvals:
+        _approvals[incident_id] = []
+    _approvals[incident_id].append(approval)
+
+
+def get_approvals(incident_id: str) -> list[dict]:
+    """Retrieve all approvals for an incident."""
+    return _approvals.get(incident_id, [])
+
+
+def store_recommendation(incident_id: str, recommendation: dict) -> None:
+    """Store a recommendation awaiting approval."""
+    if incident_id not in _recommendations:
+        _recommendations[incident_id] = []
+    _recommendations[incident_id].append(recommendation)
+
+
+def get_recommendations(incident_id: str) -> list[dict]:
+    """Retrieve all recommendations for an incident."""
+    return _recommendations.get(incident_id, [])
 
 
 def list_incidents() -> list[dict]:

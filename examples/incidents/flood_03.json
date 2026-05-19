@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T09:45:00Z",
+  "location": {
+    "voivodeship": "mazowieckie",
+    "county": "Warsaw",
+    "municipality": "Mokotow",
+    "coordinates": {
+      "lat": 52.0644,
+      "lon": 21.0314
+    }
+  },
+  "category_hint": "flood",
+  "description": "Wisła zbliża się do poziomu zagrożenia w pobliżu warszawskich mostów. Infrastruktura wodna przytłoczona, syreny ostrzegawcze активовane w dzielnicach położonych nisko.",
+  "source": {
+    "type": "sensor",
+    "reporter_id": "hydro_sensor_003",
+    "channel": "automated_system"
+  },
+  "media_refs": []
+}

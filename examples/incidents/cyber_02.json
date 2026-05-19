@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T11:30:00Z",
+  "location": {
+    "voivodeship": "podlaskie",
+    "county": "bialostocki",
+    "municipality": "Bialystok",
+    "coordinates": {
+      "lat": 53.1304,
+      "lon": 23.1688
+    }
+  },
+  "category_hint": "cyber",
+  "description": "Atak DDoS na główne usługi bankowe. Portale klienta niedostępne, sieci bankomatów częściowo zdegradowane. Intensywność ataku 500 Gbps, plany łagodzące uaktywnione.",
+  "source": {
+    "type": "institution",
+    "reporter_id": "bank_security_002",
+    "channel": "official_hotline"
+  },
+  "media_refs": []
+}

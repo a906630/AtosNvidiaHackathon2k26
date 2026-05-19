@@ -148,3 +148,77 @@ class SseEventPayload(StrictModel):
     description: Optional[str] = None
     timestamp: str
     data: dict[str, Any] = Field(default_factory=dict)
+
+
+# --- Formalne modele z Pydantic Agentic Crisis Management ---
+
+
+class SeverityLevel(str, Enum):
+    """Formalna ranga ważności incydentu (wg dokumentu Pydantic Architecture)."""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class VerificationStatus(str, Enum):
+    """Status weryfikacji incydentu."""
+    UNVERIFIED = "unverified"
+    PROBABLE = "probable"
+    VERIFIED = "verified"
+    FALSE_POSITIVE = "false_positive"
+
+
+class SeverityFactors(StrictModel):
+    """Czynniki wpływające na stopień ważności (deterministyczne scoring)."""
+    affected_population: int = Field(ge=0, description="Liczba dotkniętych osób")
+    normalized_population_score: float = Field(ge=0.0, le=1.0, description="Score populacji (0-1)")
+    infrastructure_criticality: float = Field(ge=0.0, le=1.0, description="Krytyczność infrastruktury (0-1)")
+    disruption_duration_hours: float = Field(ge=0, description="Oczekiwany czas przerwania")
+    cascading_risk: float = Field(ge=0.0, le=1.0, description="Ryzyko efektu kaskadowego (0-1)")
+    economic_impact_estimate_eur: float = Field(ge=0, description="Wpływ ekonomiczny w EUR")
+    geographic_scope_score: float = Field(ge=0.0, le=1.0, description="Zasięg geograficzny (0-1)")
+
+
+class CascadingImpact(StrictModel):
+    """Prognoza wpływu kaskadowego na inne systemy."""
+    affected_system: str
+    probability: float = Field(ge=0.0, le=1.0, description="Prawdopodobieństwo (0-1)")
+    estimated_time_minutes: int = Field(ge=0, description="Szacowany czas w minutach")
+    severity: SeverityLevel
+    dependency_path: list[str] = Field(default_factory=list, description="Ścieżka zależności")
+    geographic_regions: list[str] = Field(default_factory=list, description="Dotkniętych regiony")
+    criticality_rank: int = Field(ge=1, le=10, description="Ranga krytyczności (1-10)")
+    confidence_interval_low: float = Field(ge=0.0, le=1.0)
+    confidence_interval_high: float = Field(ge=0.0, le=1.0)
+
+
+class Recommendation(StrictModel):
+    """Zalecenie operacyjne z wymaganym zatwierdzeniem."""
+    action: str = Field(..., description="Konkretne działanie do wykonania")
+    rationale: str = Field(..., description="Uzasadnienie rekomendacji")
+    priority: int = Field(ge=1, le=5, description="Priorytet (1=najwyższy)")
+    requires_human_approval: bool = Field(default=True, description="Czy wymaga zatwierdzenia człowieka")
+    estimated_duration_minutes: Optional[int] = None
+
+
+class HumanApproval(StrictModel):
+    """Formalne zatwierdzenie przez operatora/decydenta."""
+    incident_id: str
+    approver_id: str
+    approver_role: str = Field(..., description="Rola zatwierdającego (operator, manager)")
+    approved: bool
+    decision_notes: Optional[str] = None
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    digital_signature: Optional[str] = None
+
+
+class SituationReport(StrictModel):
+    """Executive summary operacyjny (SITREP) do podejmowania decyzji."""
+    incident_id: str
+    executive_summary: str
+    current_status: str
+    emerging_risks: list[str] = Field(default_factory=list)
+    unresolved_decisions: list[str] = Field(default_factory=list)
+    recommended_actions_awaiting_approval: list[str] = Field(default_factory=list)
+    generated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())

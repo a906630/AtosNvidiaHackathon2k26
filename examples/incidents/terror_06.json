@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T14:20:00Z",
+  "location": {
+    "voivodeship": "kujawsko-pomorskie",
+    "county": "torunski",
+    "municipality": "Torun",
+    "coordinates": {
+      "lat": 53.0136,
+      "lon": 18.5952
+    }
+  },
+  "category_hint": "terror",
+  "description": "Alert wywiadowczy: Możliwa komórka terrorystyczna planująca działalność w regionie. Zwiększona obecność organów ścigania, naloty autoryzowane.",
+  "source": {
+    "type": "institution",
+    "reporter_id": "intelligence_006",
+    "channel": "official_hotline"
+  },
+  "media_refs": []
+}

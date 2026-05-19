@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T08:30:00Z",
+  "location": {
+    "voivodeship": "slskie",
+    "county": "rybnikski",
+    "municipality": "Rybnik",
+    "coordinates": {
+      "lat": 50.0982,
+      "lon": 18.5448
+    }
+  },
+  "category_hint": "flood",
+  "description": "Alert zalania kopalni węgla na Górnym Śląsku. Wiele sektorów skompromitowanych, ewakuacja 2000 pracowników trwa z podziemnych poziomów.",
+  "source": {
+    "type": "institution",
+    "reporter_id": "mine_ops_005",
+    "channel": "official_hotline"
+  },
+  "media_refs": []
+}

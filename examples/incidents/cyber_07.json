@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T12:35:00Z",
+  "location": {
+    "voivodeship": "lodzkie",
+    "county": "lodzki",
+    "municipality": "Lodz",
+    "coordinates": {
+      "lat": 51.7592,
+      "lon": 19.456
+    }
+  },
+  "category_hint": "cyber",
+  "description": "Wzrost aktywności botnetów wykryty w sieci uniwersytetu. Tysiące komputerów studentów zainfekowanych górnikiem kryptowalut. Izolacja sieci i czyszczenie w toku.",
+  "source": {
+    "type": "institution",
+    "reporter_id": "network_admin_007",
+    "channel": "official_hotline"
+  },
+  "media_refs": []
+}

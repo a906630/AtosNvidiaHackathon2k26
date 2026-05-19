@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T15:45:00Z",
+  "location": {
+    "voivodeship": "podlaskie",
+    "county": "bialostocki",
+    "municipality": "Bialystok",
+    "coordinates": {
+      "lat": 53.1304,
+      "lon": 23.1688
+    }
+  },
+  "category_hint": "flood",
+  "description": "Dopływ rzeki Bug zalewa tereny rolnicze. Systemy nawadniające uszkodzone, straty upraw szacowane na tysiące hektarów.",
+  "source": {
+    "type": "sensor",
+    "reporter_id": "water_level_007",
+    "channel": "automated_system"
+  },
+  "media_refs": []
+}

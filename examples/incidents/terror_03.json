@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T09:30:00Z",
+  "location": {
+    "voivodeship": "pomerskie",
+    "county": "gdanski",
+    "municipality": "Gdansk",
+    "coordinates": {
+      "lat": 54.352,
+      "lon": 18.6466
+    }
+  },
+  "category_hint": "terror",
+  "description": "Urządzenie wybuchowe znalezione w handlowym centrum handlowym miasta. Natychmiastowa ewakuacja zainicjowana. Promień transportu publicznego przekierowany, perimeter policji ustanowiony.",
+  "source": {
+    "type": "citizen",
+    "reporter_id": "store_manager_003",
+    "channel": "mobile_app"
+  },
+  "media_refs": []
+}

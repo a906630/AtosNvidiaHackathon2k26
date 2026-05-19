@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T13:20:00Z",
+  "location": {
+    "voivodeship": "dolnoslaskie",
+    "county": "wroclawski",
+    "municipality": "Wroclaw",
+    "coordinates": {
+      "lat": 51.1079,
+      "lon": 17.0385
+    }
+  },
+  "category_hint": "cyber",
+  "description": "Luka zero-day znaleziona w frameworku aplikacji internetowej na platformie e-commerce. Wstrzyknięcie SQL pozwala na dostęp do bazy danych. Łata wdrożona do produkcji.",
+  "source": {
+    "type": "institution",
+    "reporter_id": "dev_team_005",
+    "channel": "official_hotline"
+  },
+  "media_refs": []
+}

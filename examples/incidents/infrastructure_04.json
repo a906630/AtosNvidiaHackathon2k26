@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T12:45:00Z",
+  "location": {
+    "voivodeship": "dolnoslaskie",
+    "county": "wroclawski",
+    "municipality": "Wroclaw",
+    "coordinates": {
+      "lat": 51.1079,
+      "lon": 17.0385
+    }
+  },
+  "category_hint": "infrastructure",
+  "description": "Wyciek rurociągu gazu w strefie przemysłowej. Ewakuacje zainicjowane w promieniu 1km. Zdalne zamknięcie zaworu w toku w celu izolacji sekcji.",
+  "source": {
+    "type": "institution",
+    "reporter_id": "gas_company_004",
+    "channel": "official_hotline"
+  },
+  "media_refs": []
+}

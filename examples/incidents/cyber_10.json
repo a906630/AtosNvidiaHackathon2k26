@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T17:25:00Z",
+  "location": {
+    "voivodeship": "swietokrzyskie",
+    "county": "kielecki",
+    "municipality": "Kielce",
+    "coordinates": {
+      "lat": 50.8856,
+      "lon": 21.1288
+    }
+  },
+  "category_hint": "cyber",
+  "description": "Luka SQL injection w starszym systemie bazy danych firmy ubezpieczeniowej. Testowy ciąg połączenia ujawniony w repozytorium kodu źródłowego. Natychmiastowe łatanie zainicjowane.",
+  "source": {
+    "type": "social_media",
+    "reporter_id": "security_researcher_010",
+    "channel": "x_platform"
+  },
+  "media_refs": []
+}

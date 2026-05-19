@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T09:15:00Z",
+  "location": {
+    "voivodeship": "pomerskie",
+    "county": "gdanski",
+    "municipality": "Gdansk",
+    "coordinates": {
+      "lat": 54.352,
+      "lon": 18.6466
+    }
+  },
+  "category_hint": "infrastructure",
+  "description": "Most над rzeką Motławą zamknięty do badania awaryjnego. Pęknięcia konstrukcyjne wykryte, ruch ciężki przekierowany, raport inżynierski spodziewany w ciągu 24 godzin.",
+  "source": {
+    "type": "citizen",
+    "reporter_id": "transport_engineer_003",
+    "channel": "mobile_app"
+  },
+  "media_refs": []
+}

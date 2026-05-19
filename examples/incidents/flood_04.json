@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-05-19T12:20:00Z",
+  "location": {
+    "voivodeship": "pomerskie",
+    "county": "gdanski",
+    "municipality": "Gdansk",
+    "coordinates": {
+      "lat": 54.352,
+      "lon": 18.6466
+    }
+  },
+  "category_hint": "flood",
+  "description": "Alert sztormowy poziomu 2 aktywowany. Morze Bałtyckie zbliża się do systemu wałów. Mieszkańcy nadbrzeżni poproszeni o relokację na wyższe tereny.",
+  "source": {
+    "type": "social_media",
+    "reporter_id": "twitter_user_004",
+    "channel": "x_platform"
+  },
+  "media_refs": [
+    {
+      "type": "video",
+      "url": "https://example.com/storm_gdansk.mp4"
+    }
+  ]
+}

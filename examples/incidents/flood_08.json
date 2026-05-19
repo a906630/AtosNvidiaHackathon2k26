@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T13:00:00Z",
+  "location": {
+    "voivodeship": "wielkopolskie",
+    "county": "poznanski",
+    "municipality": "Poznan",
+    "coordinates": {
+      "lat": 52.4064,
+      "lon": 16.9252
+    }
+  },
+  "category_hint": "flood",
+  "description": "Rzeka Warta wylewając się przez wały. Strefa przemysłowa zagrożona, ewakuacja magazynu chemicznego zainicjowana jako środek ostrożności.",
+  "source": {
+    "type": "institution",
+    "reporter_id": "env_protection_008",
+    "channel": "official_hotline"
+  },
+  "media_refs": []
+}

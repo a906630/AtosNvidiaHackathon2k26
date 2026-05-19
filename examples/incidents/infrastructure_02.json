@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T11:30:00Z",
+  "location": {
+    "voivodeship": "slskie",
+    "county": "katowicki",
+    "municipality": "Katowice",
+    "coordinates": {
+      "lat": 50.2645,
+      "lon": 19.0238
+    }
+  },
+  "category_hint": "infrastructure",
+  "description": "Detekcja awarii elektrowni uzdatniania wody. Zanieczyszczenie w głównym przewodzie zasilającym, dwie dzielnice powiadomione. Dystrybucja wody butelkowanej zainicjowana.",
+  "source": {
+    "type": "sensor",
+    "reporter_id": "water_quality_002",
+    "channel": "automated_system"
+  },
+  "media_refs": []
+}

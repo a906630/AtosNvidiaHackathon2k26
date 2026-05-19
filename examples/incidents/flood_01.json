@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-05-19T10:30:00Z",
+  "location": {
+    "voivodeship": "dolnoslaskie",
+    "county": "wroclawski",
+    "municipality": "Wroclaw",
+    "coordinates": {
+      "lat": 51.1079,
+      "lon": 17.0385
+    }
+  },
+  "category_hint": "flood",
+  "description": "Główna rzeka Odra wylewa się ponad krytyczne limity. Poziom wody podnosi się 15cm na godzinę w pobliżu mostu w centrum, ewakuacja budynków mieszkalnych się rozpoczęła.",
+  "source": {
+    "type": "citizen",
+    "reporter_id": "citizen_001",
+    "channel": "mobile_app"
+  },
+  "media_refs": [
+    {
+      "type": "photo",
+      "url": "https://example.com/flood_wroclaw_01.jpg"
+    }
+  ]
+}

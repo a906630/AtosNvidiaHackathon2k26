@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T11:00:00Z",
+  "location": {
+    "voivodeship": "slskie",
+    "county": "katowicki",
+    "municipality": "Katowice",
+    "coordinates": {
+      "lat": 50.2645,
+      "lon": 19.0238
+    }
+  },
+  "category_hint": "terror",
+  "description": "Osoba uzbrojena zaobserwowana w pobliżu budynku rządowego. Policja w pościgu. Alert obszaru wysokiego ryzyka uaktywniony, budynek zabezpieczony.",
+  "source": {
+    "type": "institution",
+    "reporter_id": "police_patrol_002",
+    "channel": "official_hotline"
+  },
+  "media_refs": []
+}

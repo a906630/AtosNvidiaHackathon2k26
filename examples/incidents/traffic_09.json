@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T17:00:00Z",
+  "location": {
+    "voivodeship": "zachodniopomorskie",
+    "county": "szczecinki",
+    "municipality": "Szczecin",
+    "coordinates": {
+      "lat": 53.4285,
+      "lon": 14.5528
+    }
+  },
+  "category_hint": "traffic",
+  "description": "Awaria przejazdu kolejowego utrzymująca bramy zamknięte. Dostęp drogowy zablokowany dla pociągów przechodzących. Ruch cofający się na trasach równoległych.",
+  "source": {
+    "type": "sensor",
+    "reporter_id": "crossing_sensor_009",
+    "channel": "automated_system"
+  },
+  "media_refs": []
+}

@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T18:10:00Z",
+  "location": {
+    "voivodeship": "swietokrzyskie",
+    "county": "kielecki",
+    "municipality": "Kielce",
+    "coordinates": {
+      "lat": 50.8856,
+      "lon": 21.1288
+    }
+  },
+  "category_hint": "infrastructure",
+  "description": "Wykryto uszkodzenie powierzchni pasu startowego lotniska podczas inspekcji. Loty przekierowane, brygady konserwacyjne pracują całodobowo na szybkie naprawy.",
+  "source": {
+    "type": "sensor",
+    "reporter_id": "runway_inspection_010",
+    "channel": "automated_system"
+  },
+  "media_refs": []
+}

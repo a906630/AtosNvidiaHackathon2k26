@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T10:00:00Z",
+  "location": {
+    "voivodeship": "mazowieckie",
+    "county": "Warsaw",
+    "municipality": "Warsaw",
+    "coordinates": {
+      "lat": 52.2297,
+      "lon": 21.0122
+    }
+  },
+  "category_hint": "terror",
+  "description": "Podejrzany pakunek wykryty na dworcu kolejowym miasta. Telefon z pogróżką bombą otrzymany 15 minut wcześniej. Czyszczenie promienia 500m, jednostki EOD w drodze.",
+  "source": {
+    "type": "citizen",
+    "reporter_id": "station_guard_001",
+    "channel": "mobile_app"
+  },
+  "media_refs": []
+}

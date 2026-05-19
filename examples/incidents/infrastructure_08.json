@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T16:30:00Z",
+  "location": {
+    "voivodeship": "lodzkie",
+    "county": "lodzki",
+    "municipality": "Lodz",
+    "coordinates": {
+      "lat": 51.7592,
+      "lon": 19.456
+    }
+  },
+  "category_hint": "infrastructure",
+  "description": "Zawalenie się wieży telekomunikacyjnej w burzy. Utrata usługi telefonicznej na dużym obszarze. Generator rezerwowy uaktywniony, ekspansja sieci uaktywniona.",
+  "source": {
+    "type": "institution",
+    "reporter_id": "telecom_008",
+    "channel": "official_hotline"
+  },
+  "media_refs": []
+}

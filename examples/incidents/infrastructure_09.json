@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T17:00:00Z",
+  "location": {
+    "voivodeship": "zachodniopomorskie",
+    "county": "szczecinki",
+    "municipality": "Szczecin",
+    "coordinates": {
+      "lat": 53.4285,
+      "lon": 14.5528
+    }
+  },
+  "category_hint": "infrastructure",
+  "description": "Awaria dźwigu portowego powodująca zamknięcie obsługi ładunków. Statki przekierowane do portów alternatywnych. Dostęp do placu kontenerowego ograniczony.",
+  "source": {
+    "type": "citizen",
+    "reporter_id": "port_manager_009",
+    "channel": "mobile_app"
+  },
+  "media_refs": []
+}

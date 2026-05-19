@@ -6,6 +6,8 @@ from app.schemas import (
     IncidentResult,
     IncidentListItem,
     RealtimeLoad,
+    HumanApproval,
+    Recommendation,
 )
 from app.store import (
     create_incident,
@@ -13,6 +15,9 @@ from app.store import (
     get_result,
     list_incidents,
     get_live_metrics,
+    store_approval,
+    get_approvals,
+    get_recommendations,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["Incidents"])
@@ -87,3 +92,69 @@ async def list_all_incidents():
 )
 async def live_metrics(window_minutes: int = Query(default=15, ge=1, le=240)):
     return get_live_metrics(window_minutes=window_minutes)
+
+
+@router.post(
+    "/incidents/{incident_id}/approve",
+    response_model=HumanApproval,
+    status_code=201,
+    summary="Submit human approval",
+    description="Formal approval gate for critical actions (alerts, evacuations, etc).",
+    responses={
+        201: {"description": "Approval recorded."},
+        404: {"description": "Incident not found."},
+    },
+)
+async def approve_incident_action(
+    incident_id: str,
+    approval: HumanApproval,
+):
+    """Record formal human approval for an incident action."""
+    incident = get_incident(incident_id)
+    if not incident:
+        raise HTTPException(status_code=404, detail="Incident not found.")
+
+    approval_data = approval.model_dump(mode="json")
+    store_approval(incident_id, approval_data)
+
+    return approval
+
+
+@router.get(
+    "/incidents/{incident_id}/approvals",
+    response_model=list[HumanApproval],
+    summary="Get all approvals for an incident",
+    description="Retrieve formal approval history for an incident.",
+    responses={
+        200: {"description": "Approval list returned."},
+        404: {"description": "Incident not found."},
+    },
+)
+async def get_incident_approvals(incident_id: str):
+    """Return all recorded approvals for an incident."""
+    incident = get_incident(incident_id)
+    if not incident:
+        raise HTTPException(status_code=404, detail="Incident not found.")
+
+    return get_approvals(incident_id)
+
+
+@router.get(
+    "/incidents/{incident_id}/recommendations",
+    response_model=list[Recommendation],
+    summary="Get recommendations awaiting approval",
+    description="Retrieve operational recommendations for an incident.",
+    responses={
+        200: {"description": "Recommendations list returned."},
+        404: {"description": "Incident not found."},
+    },
+)
+async def get_incident_recommendations(incident_id: str):
+    """Return all recommendations for an incident."""
+    incident = get_incident(incident_id)
+    if not incident:
+        raise HTTPException(status_code=404, detail="Incident not found.")
+
+    return get_approvals(incident_id)
+
+

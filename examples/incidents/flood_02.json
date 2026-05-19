@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T11:15:00Z",
+  "location": {
+    "voivodeship": "dolnoslaskie",
+    "county": "swidniski",
+    "municipality": "Swidnica",
+    "coordinates": {
+      "lat": 50.8617,
+      "lon": 16.4876
+    }
+  },
+  "category_hint": "flood",
+  "description": "Intensywne opady od 6 godzin powodują lokalne zalewanie ulic. Kilka samochodów uwięzionych w podziemnym parkingu. Siły ratunkowe wysłane do ewakuacji mieszkańców.",
+  "source": {
+    "type": "institution",
+    "reporter_id": "fire_dept_002",
+    "channel": "official_hotline"
+  },
+  "media_refs": []
+}

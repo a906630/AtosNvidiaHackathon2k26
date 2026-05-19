@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T18:20:00Z",
+  "location": {
+    "voivodeship": "swietokrzyskie",
+    "county": "kielecki",
+    "municipality": "Kielce",
+    "coordinates": {
+      "lat": 50.8856,
+      "lon": 21.1288
+    }
+  },
+  "category_hint": "traffic",
+  "description": "Pożar pojazdu na autostradzie A4 powodujący alert hazmat. Służby ratunkowe ustanawiające strefę wykluczenia. Droga zamknięta do gaszenia i usuwania zmiażdżonych szczątków.",
+  "source": {
+    "type": "citizen",
+    "reporter_id": "motorist_010",
+    "channel": "mobile_app"
+  },
+  "media_refs": []
+}

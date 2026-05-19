@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T16:15:00Z",
+  "location": {
+    "voivodeship": "lodzkie",
+    "county": "lodzki",
+    "municipality": "Lodz",
+    "coordinates": {
+      "lat": 51.7592,
+      "lon": 19.456
+    }
+  },
+  "category_hint": "traffic",
+  "description": "Festiwal uliczny powodujący główne zamknięcia drogi w centrum. Transport publiczny przekierowany, parking ograniczony. Zatłoczenie rozprzestrzeniające się na otoczące tereny.",
+  "source": {
+    "type": "institution",
+    "reporter_id": "city_official_008",
+    "channel": "official_hotline"
+  },
+  "media_refs": []
+}

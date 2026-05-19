@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T12:15:00Z",
+  "location": {
+    "voivodeship": "dolnoslaskie",
+    "county": "wroclawski",
+    "municipality": "Wroclaw",
+    "coordinates": {
+      "lat": 51.1079,
+      "lon": 17.0385
+    }
+  },
+  "category_hint": "terror",
+  "description": "Biała substancja proszkowata wykryta w poczcie portu lotniczego. Zespół CBRN uaktywniony, powierzchnia izolowana, pracownicy poddani kwarantannie do testów.",
+  "source": {
+    "type": "institution",
+    "reporter_id": "airport_security_004",
+    "channel": "official_hotline"
+  },
+  "media_refs": []
+}

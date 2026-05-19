@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T10:40:00Z",
+  "location": {
+    "voivodeship": "zachodniopomorskie",
+    "county": "szczecinki",
+    "municipality": "Szczecin",
+    "coordinates": {
+      "lat": 53.4285,
+      "lon": 14.5528
+    }
+  },
+  "category_hint": "cyber",
+  "description": "Wykryto egzfiltrację danych z działu księgowości. Prywatne rejestry finansowe pobrane na zewnętrzny adres IP. Dochodzenie w toku ze wsparciem organów ścigania.",
+  "source": {
+    "type": "citizen",
+    "reporter_id": "it_staff_009",
+    "channel": "mobile_app"
+  },
+  "media_refs": []
+}

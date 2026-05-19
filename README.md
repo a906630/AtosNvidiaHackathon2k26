@@ -70,6 +70,67 @@ NVIDIA_MODEL_COMMS_GENERATOR=meta/llama-3.1-70b-instruct
 
 Jeśli nie ustawisz zmiennych per-agent, aplikacja użyje `NVIDIA_MODEL` jako fallback.
 
+## Formalna warstwę operacyjna (Pydantic Agentic Architecture)
+
+Projekt wdraża formalne Pydantic modele zgodnie ze specyfikacją *Pydantic-Based Agentic Crisis Management System*:
+
+### Sformalizowane kontrakty
+
+- `SeverityLevel` — enum(low, medium, high, critical) dla kategoryzacji ważności
+- `VerificationStatus` — enum(unverified, probable, verified, false_positive) dla statusu weryfikacji
+- `SeverityFactors` — typed cechy wpływające na ważność (populacja, infrastruktura, czas trwania, ryzyko)
+- `CascadingImpact` — prognoza wpływu na systemy zależne z szacowanym czasem i pewnością
+- `Recommendation` — zalecenie z action + rationale + priority + approval_required
+- `HumanApproval` — formalne zatwierdzenie z approver_id, role, cyfrową sygnaturą i czasem
+- `SituationReport` — executive summary (SITREP) z unresolved_decisions i recommended_actions_awaiting_approval
+
+### Deterministyczny scoring severity
+
+Moduł `app/agents/severity_engine.py` implementuje deterministyczny scoring na podstawie:
+
+```
+Score = (pop * 0.25 + infrastructure * 0.30 + duration * 0.15 + cascading * 0.20 + geographic * 0.10) * 100
+```
+
+**Progi klasyfikacji:**
+- CRITICAL: >= 75
+- HIGH: >= 50
+- MEDIUM: >= 25
+- LOW: < 25
+
+Dzięki temu LLM agent tłumaczy faktory, ale scoring jest **niezależny od hallucynacji LLM**.
+
+## Wdrożone elementy ze specyfikacji Pydantic Agentic Crisis Management
+
+Z dokumentu *Pydantic-Based Agentic Crisis Management System* wdrożono:
+
+✅ **Warstwę operacyjną (Operational Contract Layer)**
+- Sformalizowane schematy Pydantic dla wszystkich wejść/wyjść
+- Enums dla `SeverityLevel`, `VerificationStatus`
+- Structured models dla `SeverityFactors`, `CascadingImpact`, `Recommendation`, `HumanApproval`
+- `SituationReport` (SITREP) dla executive summary
+
+✅ **Warstwę inteligencji (Intelligence Layer)**
+- Wieloagentowa architektura (supervisr + verifiers + correlator + priority + comms)
+- Alle agenty zwracają typed responses, nie raw text
+
+✅ **Warstwę człowieka (Authority Layer)**
+- Approval gates dla krytycznych akcji (`/approve` endpoint)
+- Historia zatwierdzeń z `approver_id`, `approver_role`, `decision_notes`
+- `requires_human_approval` flag na rekomendacjach
+
+✅ **Deterministyczne scoring**
+- `SeverityScoringEngine` z wbudowanymi wagami
+- Niezależny od LLM scoring severity
+
+⚠️ **Nie wdrożono (z powodu zakresu hackatonu):**
+- Event streaming (Kafka) — zamiast: SSE + in-memory store
+- Vector DB (pgvector) — zamiast: CUDA semantic reranker
+- Graph DB (Neo4j) — zamiast: LangGraph state
+- Cyber AI (NVIDIA Morpheus) — zamiast: общих domain verifier
+- Omniverse simulation — zamiast: strukturalna prognoza wpływów
+- Policy engine (OPA) — zamiast: fallback regex guardrails
+
 ## Endpointy API
 
 ### Incident API
@@ -78,6 +139,9 @@ Jeśli nie ustawisz zmiennych per-agent, aplikacja użyje `NVIDIA_MODEL` jako fa
 - `GET /api/v1/incidents/{incident_id}/result` - finalny wynik
 - `GET /api/v1/incidents` - lista zgloszen
 - `GET /api/v1/metrics/live?window_minutes=15` - metryki realtime
+- `POST /api/v1/incidents/{incident_id}/approve` - formalne zatwierdzenie (approval gate)
+- `GET /api/v1/incidents/{incident_id}/approvals` - historia zatwierdzeń
+- `GET /api/v1/incidents/{incident_id}/recommendations` - rekomendacje czekające na zatwierdzenie
 
 ### Visualization API
 
@@ -285,6 +349,7 @@ app/
     state.py
     tools.py
     cuda_utils.py
+    severity_engine.py
     graph.py
   api/
     incidents.py
@@ -292,3 +357,33 @@ app/
 static/
   dashboard.html
 ```
+
+## Przykładowe incydenty (Testing & Demo)
+
+Folder `examples/` zawiera 50 realistycznych scenariuszy kryzysowych podzielonych na 5 kategorii:
+
+- **flood/** → 10 scenariuszy powodzi (Odra, Wisła, burze)
+- **cyber/** → 10 scenariuszy cyberataków (ransomware, DDoS, phishing)
+- **terror/** → 10 scenariuszy zagrożeń terrorystycznych (bomby, CBRN)
+- **infrastructure/** → 10 scenariuszy awarii infrastruktury (prąd, woda, mosty)
+- **traffic/** → 10 scenariuszy incydentów drogowych (wypadki, zatory)
+
+### Szybki start z przykładami
+
+1. Upewnij się, że API działa:
+```bash
+python main.py
+```
+
+2. W osobnym terminalu wyślij wszystkie incydenty:
+```bash
+python examples/send_incidents.py
+```
+
+3. Monitoruj SSE stream incydentu:
+```bash
+curl http://localhost:8000/viz/stream/{incident_id}
+```
+
+Szczegółowe instrukcje: [examples/README.md](examples/README.md)
+

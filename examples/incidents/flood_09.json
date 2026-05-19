@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-05-19T16:30:00Z",
+  "location": {
+    "voivodeship": "zachodniopomorskie",
+    "county": "szczecinki",
+    "municipality": "Szczecin",
+    "coordinates": {
+      "lat": 53.4285,
+      "lon": 14.5528
+    }
+  },
+  "category_hint": "flood",
+  "description": "Pęknięcie drugorzędnego kanału rzeki Odry grozi infrastrukturze portu. Terminale kontenerów ewakuowane, nawigacja ograniczona.",
+  "source": {
+    "type": "citizen",
+    "reporter_id": "port_worker_009",
+    "channel": "mobile_app"
+  },
+  "media_refs": [
+    {
+      "type": "photo",
+      "url": "https://example.com/szczecin_breach.jpg"
+    }
+  ]
+}

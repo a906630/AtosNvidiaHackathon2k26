@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T17:15:00Z",
+  "location": {
+    "voivodeship": "lodzkie",
+    "county": "lodzki",
+    "municipality": "Lodz",
+    "coordinates": {
+      "lat": 51.7592,
+      "lon": 19.456
+    }
+  },
+  "category_hint": "flood",
+  "description": "Zalane liczne ulice z powodu przytłoczonego systemu odprowadzania wód opadowych. Transport publiczny zakłócony, piesi uwięzieni w dotkniętych obszarach.",
+  "source": {
+    "type": "social_media",
+    "reporter_id": "twitter_user_010",
+    "channel": "x_platform"
+  },
+  "media_refs": []
+}

@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T16:00:00Z",
+  "location": {
+    "voivodeship": "lodzkie",
+    "county": "lodzki",
+    "municipality": "Lodz",
+    "coordinates": {
+      "lat": 51.7592,
+      "lon": 19.456
+    }
+  },
+  "category_hint": "terror",
+  "description": "Nienadzorowany bagaż zgłoszony w centrum transportu publicznego. Jednostka K9 i zespoły CBRN odpowiadają, pociągi wstrzymane, pasażerowie ewakuowani.",
+  "source": {
+    "type": "citizen",
+    "reporter_id": "transport_worker_008",
+    "channel": "mobile_app"
+  },
+  "media_refs": []
+}

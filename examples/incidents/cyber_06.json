@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T15:10:00Z",
+  "location": {
+    "voivodeship": "pomerskie",
+    "county": "gdanski",
+    "municipality": "Gdansk",
+    "coordinates": {
+      "lat": 54.352,
+      "lon": 18.6466
+    }
+  },
+  "category_hint": "cyber",
+  "description": "Aktywność grupy APT wykryta w sieci przedsiębiorstwa energetyki. Ruch boczny próbujący dostać się do systemów SCADA. Zespół reagowania na incydenty zmobilizowany.",
+  "source": {
+    "type": "sensor",
+    "reporter_id": "ids_sensor_006",
+    "channel": "automated_system"
+  },
+  "media_refs": []
+}

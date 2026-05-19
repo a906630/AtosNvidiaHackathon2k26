@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T10:00:00Z",
+  "location": {
+    "voivodeship": "mazowieckie",
+    "county": "Warsaw",
+    "municipality": "Warsaw",
+    "coordinates": {
+      "lat": 52.2297,
+      "lon": 21.0122
+    }
+  },
+  "category_hint": "cyber",
+  "description": "Atak ransomware'u wykryty w sieci ministerstwa rządowego. Szyfrowanie plików rozprzestrzenia się na połączone systemy. CSIRT GOV uaktywniony i pracuje nad lokalizacją.",
+  "source": {
+    "type": "institution",
+    "reporter_id": "it_security_001",
+    "channel": "official_hotline"
+  },
+  "media_refs": []
+}

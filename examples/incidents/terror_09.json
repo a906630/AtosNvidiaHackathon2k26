@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T17:10:00Z",
+  "location": {
+    "voivodeship": "zachodniopomorskie",
+    "county": "szczecinki",
+    "municipality": "Szczecin",
+    "coordinates": {
+      "lat": 53.4285,
+      "lon": 14.5528
+    }
+  },
+  "category_hint": "terror",
+  "description": "Możliwe nabycie broni palnej w wrażliwym regionie granicznym. Celnictwo i siły specjalne koordynują nadzór i operacje przechwytujące.",
+  "source": {
+    "type": "institution",
+    "reporter_id": "customs_009",
+    "channel": "official_hotline"
+  },
+  "media_refs": []
+}

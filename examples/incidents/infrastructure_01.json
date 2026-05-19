@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-19T10:00:00Z",
+  "location": {
+    "voivodeship": "mazowieckie",
+    "county": "Warsaw",
+    "municipality": "Warsaw",
+    "coordinates": {
+      "lat": 52.2297,
+      "lon": 21.0122
+    }
+  },
+  "category_hint": "infrastructure",
+  "description": "Duża przerwa prądu w centrum miasta. Awaria transformatora podstacji 7 spowodowała przerwy kaskadowe. Dotknięte około 50,000 mieszkańców, przywrócenie szacowane na 4 godziny.",
+  "source": {
+    "type": "institution",
+    "reporter_id": "grid_operator_001",
+    "channel": "official_hotline"
+  },
+  "media_refs": []
+}
