@@ -125,6 +125,14 @@ def _fetch_nim_models() -> set[str]:
         return set()
 
 
+def _select_default_model(available: set[str], configured_default: str) -> str:
+    """Pick a safe default model from available NIM catalog."""
+    if configured_default in available:
+        return configured_default
+    # Deterministic choice for reproducibility in logs.
+    return sorted(available)[0]
+
+
 def _resolve_agent_model_map() -> dict[str, str]:
     """Validate mapped models against NIM catalog and fallback to default model when needed."""
     settings = get_settings()
@@ -134,26 +142,40 @@ def _resolve_agent_model_map() -> dict[str, str]:
         return mapped
 
     resolved = mapped.copy()
-    fallback = settings.nvidia_model
+    fallback = _select_default_model(available, settings.nvidia_model)
+    if fallback != settings.nvidia_model:
+        logger.warning(
+            "Configured NVIDIA_MODEL '%s' is not in NIM catalog. Using '%s' as effective fallback.",
+            settings.nvidia_model,
+            fallback,
+        )
     for role, model in mapped.items():
         if model in available:
             continue
-        if fallback in available:
-            logger.warning(
-                "Model '%s' for role '%s' not found in NIM catalog. Falling back to '%s'.",
-                model,
-                role,
-                fallback,
-            )
-            resolved[role] = fallback
-        else:
-            logger.warning(
-                "Model '%s' for role '%s' not found in NIM catalog and fallback '%s' is also unavailable.",
-                model,
-                role,
-                fallback,
-            )
+        logger.warning(
+            "Model '%s' for role '%s' not found in NIM catalog. Falling back to '%s'.",
+            model,
+            role,
+            fallback,
+        )
+        resolved[role] = fallback
     return resolved
+
+
+def _fallback_model_candidates(current_model: str | None) -> list[str]:
+    """Build retry candidates for failed model invocations."""
+    settings = get_settings()
+    candidates: list[str] = []
+    available = _fetch_nim_models()
+
+    if settings.nvidia_model and settings.nvidia_model != current_model:
+        candidates.append(settings.nvidia_model)
+
+    for model in sorted(available):
+        if model != current_model and model not in candidates:
+            candidates.append(model)
+
+    return candidates
 
 
 def _normalize_category(raw: str | None) -> str:
@@ -608,33 +630,46 @@ Return JSON only:
 async def _guarded_ainvoke(llm, prompt: str, context: str):
     """Run prompt guardrails before invoking the LLM."""
     sanitized_prompt, guard_info = guard_prompt(prompt, context=context)
+    current_model = getattr(llm, "model", None)
     try:
+        logger.info("LLM invoke start | context=%s | model=%s", context, current_model)
         response = await llm.ainvoke([HumanMessage(content=sanitized_prompt)])
+        logger.info("LLM invoke ok    | context=%s | model=%s", context, current_model)
     except Exception as exc:
-        settings = get_settings()
-        current_model = getattr(llm, "model", None)
         is_not_found = "404" in str(exc) or "Not Found" in str(exc)
-        can_retry = is_not_found and current_model and current_model != settings.nvidia_model
-        if not can_retry:
+        if not is_not_found:
+            logger.warning("LLM invoke error | context=%s | model=%s | error=%s", context, current_model, exc)
             raise
 
+        retry_chain = _fallback_model_candidates(current_model)
         logger.warning(
-            "LLM call failed in context '%s' for model '%s' with '%s'. Retrying with fallback model '%s'.",
+            "LLM model_not_found | context=%s | model=%s | retry_candidates=%s",
             context,
             current_model,
-            exc,
-            settings.nvidia_model,
+            retry_chain,
         )
-        fallback_llm = _get_llm(settings.nvidia_model)
-        response = await fallback_llm.ainvoke([HumanMessage(content=sanitized_prompt)])
-        guard_info = {
-            **guard_info,
-            "llm_model_fallback": {
-                "from": current_model,
-                "to": settings.nvidia_model,
-                "reason": "model_not_found",
-            },
-        }
+
+        last_exc = exc
+        for candidate in retry_chain:
+            try:
+                retry_llm = _get_llm(candidate)
+                logger.info("LLM retry start  | context=%s | model=%s", context, candidate)
+                response = await retry_llm.ainvoke([HumanMessage(content=sanitized_prompt)])
+                logger.info("LLM retry ok     | context=%s | model=%s", context, candidate)
+                guard_info = {
+                    **guard_info,
+                    "llm_model_fallback": {
+                        "from": current_model,
+                        "to": candidate,
+                        "reason": "model_not_found",
+                    },
+                }
+                return response, guard_info
+            except Exception as retry_exc:
+                last_exc = retry_exc
+                logger.warning("LLM retry failed | context=%s | model=%s | error=%s", context, candidate, retry_exc)
+
+        raise last_exc
     return response, guard_info
 
 
@@ -703,6 +738,11 @@ def build_crisis_graph(model_map: dict[str, str] | None = None):
 @lru_cache(maxsize=1)
 def get_graph():
     logger.info("Building CZK LangGraph workflow...")
+    available_models = sorted(_fetch_nim_models())
+    if available_models:
+        logger.info("NIM model catalog loaded | count=%s | models=%s", len(available_models), available_models)
+    else:
+        logger.warning("NIM model catalog unavailable during graph bootstrap.")
     resolved_map = _resolve_agent_model_map()
     logger.info(f"Per-agent model map: {resolved_map}")
     graph = build_crisis_graph(model_map=resolved_map)

@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, HTTPException, Query
 
 from app.schemas import (
@@ -21,6 +23,7 @@ from app.store import (
 )
 
 router = APIRouter(prefix="/api/v1", tags=["Incidents"])
+logger = logging.getLogger(__name__)
 
 
 @router.post(
@@ -38,6 +41,13 @@ async def submit_incident(incident: IncidentInput):
     """Accept an incident and enqueue it for multi-agent processing."""
     incident_data = incident.model_dump(mode="json")
     incident_id = create_incident(incident_data)
+    logger.info(
+        "Incident accepted | id=%s | category_hint=%s | voivodeship=%s | source=%s",
+        incident_id,
+        incident_data.get("category_hint"),
+        (incident_data.get("location") or {}).get("voivodeship"),
+        (incident_data.get("source") or {}).get("type"),
+    )
 
     return IncidentResponse(
         incident_id=incident_id,
@@ -64,11 +74,14 @@ async def get_incident_result(incident_id: str):
     if not result:
         incident = get_incident(incident_id)
         if not incident:
+            logger.warning("Incident result requested but not found | id=%s", incident_id)
             raise HTTPException(status_code=404, detail="Incident not found.")
+        logger.info("Incident still processing | id=%s", incident_id)
         raise HTTPException(
             status_code=202,
             detail="Incident is still processing. Follow /viz/stream/{incident_id}",
         )
+    logger.info("Incident result returned | id=%s", incident_id)
     return result
 
 
@@ -155,6 +168,6 @@ async def get_incident_recommendations(incident_id: str):
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found.")
 
-    return get_approvals(incident_id)
+    return get_recommendations(incident_id)
 
 

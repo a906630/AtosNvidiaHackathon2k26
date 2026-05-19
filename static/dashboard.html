@@ -588,6 +588,7 @@
         });
         const data = await r.json();
         addLogEntry('info', null, `Zgłoszenie przyjęte — ID: ${data.incident_id}`);
+        loadIncidentsList();
         startStreaming(data.incident_id);
       } catch (e) {
         addLogEntry('error', null, 'Błąd wysyłania: ' + e.message);
@@ -740,9 +741,9 @@
 
         // Pobranie wyniku (jeśli jest gotowy)
         const resultRes = await fetch(`/api/v1/incidents/${incidentId}/result`);
-        if (resultRes.ok) {
+        if (resultRes.status === 200) {
           const result = await resultRes.json();
-          if (result) {
+          if (result && result.incident_id) {
             showResult(result);
             addLogEntry(null, null, '✅ Wynik załadowany z cache');
             if (result.processing_log) {
@@ -754,6 +755,12 @@
             }
             return;
           }
+        }
+
+        if (resultRes.status === 202) {
+          addLogEntry(null, null, '⏳ Incydent w trakcie przetwarzania — przełączam na live stream');
+          startStreaming(incidentId);
+          return;
         }
 
         // Pobranie wyniku z SSE stream

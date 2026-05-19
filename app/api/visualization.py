@@ -43,6 +43,7 @@ async def stream_incident(incident_id: str):
     incident_data = get_incident(incident_id)
     if not incident_data:
         raise HTTPException(status_code=404, detail="Incident does not exist.")
+    logger.info("SSE stream started | incident_id=%s", incident_id)
 
     async def generate():
         graph = get_graph()
@@ -114,6 +115,7 @@ async def stream_incident(incident_id: str):
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             }
             store_result(incident_id, result)
+            logger.info("SSE stream completed | incident_id=%s", incident_id)
             yield f"data: {_safe_serialize({'type': 'done', 'incident_id': incident_id, 'result': result})}\n\n"
 
         except Exception as exc:
