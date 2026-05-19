@@ -9,7 +9,6 @@
       "lon": 21.0122
     }
   },
-  "category_hint": "infrastructure",
   "description": "Duża przerwa prądu w centrum miasta. Awaria transformatora podstacji 7 spowodowała przerwy kaskadowe. Dotknięte około 50,000 mieszkańców, przywrócenie szacowane na 4 godziny.",
   "source": {
     "type": "institution",

@@ -9,7 +9,6 @@
       "lon": 21.1288
     }
   },
-  "category_hint": "terror",
   "description": "Alarm anthraxu w lotnisku cywilnym strefy odbioru poczty. Władze zdrowia i zespoły hazmat uaktywnione, terminal ewakuowany, harmonogram lotów zakłócony.",
   "source": {
     "type": "sensor",

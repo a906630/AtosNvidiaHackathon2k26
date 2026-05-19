@@ -9,7 +9,6 @@
       "lon": 23.1688
     }
   },
-  "category_hint": "cyber",
   "description": "Atak DDoS na główne usługi bankowe. Portale klienta niedostępne, sieci bankomatów częściowo zdegradowane. Intensywność ataku 500 Gbps, plany łagodzące uaktywnione.",
   "source": {
     "type": "institution",

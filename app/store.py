@@ -92,8 +92,9 @@ def get_live_metrics(window_minutes: int = 15) -> dict:
     by_minute: Counter[str] = Counter()
     recent = 0
 
-    for incident in _incidents.values():
-        category = str(incident.get("category_hint", "unknown"))
+    for incident_id, incident in _incidents.items():
+        result = _results.get(incident_id) or {}
+        category = str(incident.get("category_hint") or result.get("category") or "unknown")
         category_counts[category] += 1
 
         ts = _parse_ts(incident.get("timestamp"))

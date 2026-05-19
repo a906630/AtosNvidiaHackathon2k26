@@ -9,7 +9,6 @@
       "lon": 18.5952
     }
   },
-  "category_hint": "infrastructure",
   "description": "Przepełnienie oczyszczalni ścieków z powodu ulewnych opadów. Rezerwowy system grozi obszarom mieszkalnym, tymczasowe tamy w budowie.",
   "source": {
     "type": "sensor",

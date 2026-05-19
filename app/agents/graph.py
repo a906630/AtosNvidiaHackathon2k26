@@ -210,7 +210,6 @@ def make_supervisor_node(llm):
 Classify the incident into one primary domain and suggest related domains.
 
 Incident location: {_municipality(location) or '?'}, voivodeship {location.get('voivodeship', '?')}
-Category hint: {incident.get('category_hint', 'unknown')}
 Description: {incident.get('description', '')}
 Source: {incident.get('source', {}).get('type', '?')} / {incident.get('source', {}).get('channel', '?')}
 Timestamp: {incident.get('timestamp', '?')}
@@ -230,7 +229,7 @@ Return JSON only:
         except Exception as exc:
             logger.warning(f"Supervisor LLM error: {exc}")
             result = {
-                "category": incident.get("category_hint", "unknown"),
+                "category": "unknown",
                 "related_categories": [],
                 "classification_reasoning": f"Fallback classification due to LLM failure: {exc}",
             }

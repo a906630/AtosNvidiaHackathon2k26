@@ -9,7 +9,6 @@
       "lon": 21.0314
     }
   },
-  "category_hint": "flood",
   "description": "Wisła zbliża się do poziomu zagrożenia w pobliżu warszawskich mostów. Infrastruktura wodna przytłoczona, syreny ostrzegawcze активовane w dzielnicach położonych nisko.",
   "source": {
     "type": "sensor",

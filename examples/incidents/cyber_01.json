@@ -9,7 +9,6 @@
       "lon": 21.0122
     }
   },
-  "category_hint": "cyber",
   "description": "Atak ransomware'u wykryty w sieci ministerstwa rządowego. Szyfrowanie plików rozprzestrzenia się na połączone systemy. CSIRT GOV uaktywniony i pracuje nad lokalizacją.",
   "source": {
     "type": "institution",

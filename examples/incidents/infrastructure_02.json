@@ -9,7 +9,6 @@
       "lon": 19.0238
     }
   },
-  "category_hint": "infrastructure",
   "description": "Detekcja awarii elektrowni uzdatniania wody. Zanieczyszczenie w głównym przewodzie zasilającym, dwie dzielnice powiadomione. Dystrybucja wody butelkowanej zainicjowana.",
   "source": {
     "type": "sensor",

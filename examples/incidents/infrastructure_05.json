@@ -9,7 +9,6 @@
       "lon": 16.9252
     }
   },
-  "category_hint": "infrastructure",
   "description": "Awaria systemu sygnalizacji kolejowej wpływająca na główny korytarz północ-południe. Wszystkie pociągi zatrzymane w oczekiwaniu na dochodzenie. Alternatywne trasy w trakcie konfiguracji.",
   "source": {
     "type": "institution",

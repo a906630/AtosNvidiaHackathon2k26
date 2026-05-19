@@ -42,9 +42,8 @@ async def submit_incident(incident: IncidentInput):
     incident_data = incident.model_dump(mode="json")
     incident_id = create_incident(incident_data)
     logger.info(
-        "Incident accepted | id=%s | category_hint=%s | voivodeship=%s | source=%s",
+        "Incident accepted | id=%s | voivodeship=%s | source=%s",
         incident_id,
-        incident_data.get("category_hint"),
         (incident_data.get("location") or {}).get("voivodeship"),
         (incident_data.get("source") or {}).get("type"),
     )

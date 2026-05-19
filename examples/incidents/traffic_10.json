@@ -9,7 +9,6 @@
       "lon": 21.1288
     }
   },
-  "category_hint": "traffic",
   "description": "Pożar pojazdu na autostradzie A4 powodujący alert hazmat. Służby ratunkowe ustanawiające strefę wykluczenia. Droga zamknięta do gaszenia i usuwania zmiażdżonych szczątków.",
   "source": {
     "type": "citizen",

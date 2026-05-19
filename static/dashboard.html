@@ -118,20 +118,7 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-3 mb-3">
-          <div>
-            <label class="text-xs text-gray-400 mb-1 block">Kategoria</label>
-            <select id="f-category"
-              class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-[#76b900] outline-none">
-              <option value="flood">🌊 Powódź</option>
-              <option value="cyber">💻 Cyberatak</option>
-              <option value="terror">🚨 Atak terrorystyczny</option>
-              <option value="infrastructure">🏗 Infrastruktura</option>
-              <option value="traffic">🚗 Ruch uliczny</option>
-              <option value="services">🏥 Usługi publiczne</option>
-              <option value="unknown">❓ Nieznane</option>
-            </select>
-          </div>
+        <div class="grid grid-cols-1 gap-3 mb-3">
           <div>
             <label class="text-xs text-gray-400 mb-1 block">Źródło zgłoszenia</label>
             <select id="f-source"
@@ -142,6 +129,10 @@
               <option value="institution">Instytucja</option>
             </select>
           </div>
+        </div>
+
+        <div class="mb-3 text-xs text-gray-500">
+          Kategoria jest klasyfikowana automatycznie przez agenta <strong>Supervisor</strong>.
         </div>
 
         <div class="mb-4">
@@ -347,6 +338,45 @@
         </div>
       </section>
 
+      <!-- Incident source preview -->
+      <section class="agent-card rounded-xl p-5" style="opacity:1">
+        <h2 class="text-gray-500 text-xs uppercase tracking-widest mb-3">🧾 Podgląd zgłoszenia</h2>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block" for="p-voivodeship">Województwo</label>
+            <input id="p-voivodeship" type="text" disabled
+              class="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2 text-sm text-gray-400" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block" for="p-municipality">Gmina</label>
+            <input id="p-municipality" type="text" disabled
+              class="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2 text-sm text-gray-400" />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block" for="p-source">Źródło</label>
+            <input id="p-source" type="text" disabled
+              class="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2 text-sm text-gray-400" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-400 mb-1 block" for="p-timestamp">Czas zgłoszenia</label>
+            <input id="p-timestamp" type="text" disabled
+              class="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2 text-sm text-gray-400" />
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="text-xs text-gray-400 mb-1 block" for="p-detected-category">Kategoria wykryta przez supervisor</label>
+          <input id="p-detected-category" type="text" disabled value="—"
+            class="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2 text-sm text-gray-300" />
+        </div>
+        <div>
+          <label class="text-xs text-gray-400 mb-1 block" for="p-description">Opis</label>
+          <textarea id="p-description" rows="3" disabled
+            class="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2 text-sm text-gray-400 resize-none"></textarea>
+        </div>
+      </section>
+
       <!-- Live event log -->
       <section class="agent-card rounded-xl p-5 flex flex-col" style="opacity:1; min-height:300px">
         <div class="flex items-center justify-between mb-3">
@@ -545,10 +575,23 @@
       }
 
       document.getElementById('r-json').textContent = JSON.stringify(result, null, 2);
+      document.getElementById('p-detected-category').value = result.category || '—';
     }
 
     // ── main flow ──────────────────────────────────────────────
     let currentEventSource = null;
+    let incidentsCache = [];
+
+    function fillIncidentPreview(incident) {
+      const location = incident?.location || {};
+      const source = incident?.source || {};
+      document.getElementById('p-voivodeship').value = location.voivodeship || '—';
+      document.getElementById('p-municipality').value = location.municipality || location.gmina || '—';
+      document.getElementById('p-source').value = source.type || '—';
+      document.getElementById('p-timestamp').value = incident?.timestamp || '—';
+      document.getElementById('p-description').value = incident?.description || '—';
+      document.getElementById('p-detected-category').value = incident?.result?.category || '—';
+    }
 
     async function submitIncident() {
       const voivodeship = document.getElementById('f-voivodeship').value.trim();
@@ -566,7 +609,6 @@
           voivodeship,
           municipality: document.getElementById('f-municipality').value.trim() || undefined,
         },
-        category_hint: document.getElementById('f-category').value,
         description,
         source: {
           type: document.getElementById('f-source').value,
@@ -574,6 +616,8 @@
         },
         timestamp: new Date().toISOString(),
       };
+
+      fillIncidentPreview(payload);
 
       addLogEntry('info', null, 'Wysyłanie zgłoszenia...');
       document.getElementById('processing-indicator').classList.remove('hidden');
@@ -670,7 +714,6 @@
     function loadExample() {
       document.getElementById('f-voivodeship').value = 'dolnośląskie';
       document.getElementById('f-municipality').value = 'Wrocław';
-      document.getElementById('f-category').value = 'flood';
       document.getElementById('f-source').value = 'citizen';
       document.getElementById('f-description').value =
         'Woda zalała ulicę Świdnicką i plac Solny. Poziom Odry przekroczył stan alarmowy o 40 cm. Mieszkańcy ewakuują się z parteru. Strażacy rozstawiają worki z piaskiem, sytuacja dynamicznie się pogarsza.';
@@ -682,6 +725,12 @@
           const el = document.getElementById(id);
           if (el) el.value = '';
         });
+        ['p-voivodeship', 'p-municipality', 'p-source', 'p-timestamp', 'p-description'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+        const detectedCategory = document.getElementById('p-detected-category');
+        if (detectedCategory) detectedCategory.value = '—';
       }
       NODE_ORDER.forEach(n => {
         setCardState(n, 'idle');
@@ -701,6 +750,7 @@
       try {
         const res = await fetch('/api/v1/incidents');
         const incidents = await res.json();
+        incidentsCache = incidents;
         const switcher = document.getElementById('incident-switcher');
         switcher.innerHTML = '<option value="">— Wybierz incydent do podglądu —</option>';
 
@@ -714,7 +764,7 @@
             services: '🏥',
             unknown: '❓'
           };
-          const cat = inc.category_hint || 'unknown';
+          const cat = inc.result?.category || inc.category_hint || 'unknown';
           const emoji = catEmojis[cat] || '?';
           const desc = (inc.description || '').slice(0, 50) + (inc.description?.length > 50 ? '...' : '');
           const option = document.createElement('option');
@@ -730,6 +780,9 @@
     async function switchIncident() {
       const incidentId = document.getElementById('incident-switcher').value;
       if (!incidentId) return;
+
+      const selectedIncident = incidentsCache.find(i => i.incident_id === incidentId);
+      if (selectedIncident) fillIncidentPreview(selectedIncident);
 
       resetUI(false);
       await loadIncidentStream(incidentId);

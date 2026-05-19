@@ -9,7 +9,6 @@
       "lon": 14.5528
     }
   },
-  "category_hint": "infrastructure",
   "description": "Awaria dźwigu portowego powodująca zamknięcie obsługi ładunków. Statki przekierowane do portów alternatywnych. Dostęp do placu kontenerowego ograniczony.",
   "source": {
     "type": "citizen",

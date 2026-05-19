@@ -9,7 +9,6 @@
       "lon": 19.0238
     }
   },
-  "category_hint": "traffic",
   "description": "Zatłoczenie w godzinach szczytu na ekspresówce S1. Wypadek na kilometrze 35 blokujący lewy pas. Kopia ruchu rozciągająca się 8km, szacunkowe wyczyszczenie 40 minut.",
   "source": {
     "type": "sensor",

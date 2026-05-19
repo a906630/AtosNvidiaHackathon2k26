@@ -9,7 +9,6 @@
       "lon": 18.5952
     }
   },
-  "category_hint": "traffic",
   "description": "Budowa mostu powodująca częściowe zamknięcie pasa podczas inspekcji mostu. Ograniczenie prędkości ruchu do 40km/h w strefie roboczej. Opóźnienia spodziewane do godz. 18:00.",
   "source": {
     "type": "institution",

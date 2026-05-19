@@ -9,7 +9,6 @@
       "lon": 21.1288
     }
   },
-  "category_hint": "infrastructure",
   "description": "Wykryto uszkodzenie powierzchni pasu startowego lotniska podczas inspekcji. Loty przekierowane, brygady konserwacyjne pracują całodobowo na szybkie naprawy.",
   "source": {
     "type": "sensor",

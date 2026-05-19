@@ -50,7 +50,7 @@ async def stream_incident(incident_id: str):
 
         initial_state = {
             "incident_data": incident_data,
-            "category": incident_data.get("category_hint", "unknown"),
+            "category": "unknown",
             "related_categories": [],
             "recent_incidents": get_recent_incidents(limit=25),
             "credibility_result": None,

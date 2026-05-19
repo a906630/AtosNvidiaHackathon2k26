@@ -3,7 +3,9 @@ Crisis management API entrypoint.
 """
 import logging
 from contextlib import asynccontextmanager
+from urllib.parse import urlparse
 
+import httpx
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,10 +40,41 @@ OPENAPI_TAGS = [
 ]
 
 
+def _validate_nim_endpoint() -> None:
+    """Validate NVIDIA NIM endpoint and print actionable startup diagnostics."""
+    parsed = urlparse(settings.nvidia_base_url)
+    nim_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+
+    if nim_port == settings.app_port and parsed.hostname in {"localhost", "127.0.0.1"}:
+        logger.warning(
+            "Potential port conflict detected: APP_PORT=%s and NVIDIA_BASE_URL=%s. "
+            "If API and NIM run on the same host, use different ports (e.g. app 8080, NIM 8000).",
+            settings.app_port,
+            settings.nvidia_base_url,
+        )
+
+    models_url = f"{settings.nvidia_base_url.rstrip('/')}/models"
+    headers = {}
+    if settings.nvidia_api_key and settings.nvidia_api_key != "no-key":
+        headers["Authorization"] = f"Bearer {settings.nvidia_api_key}"
+
+    try:
+        res = httpx.get(models_url, headers=headers, timeout=5.0)
+        if res.status_code == 200:
+            payload = res.json() if res.headers.get("content-type", "").startswith("application/json") else {}
+            model_ids = [item.get("id") for item in payload.get("data", []) if isinstance(item, dict) and item.get("id")]
+            logger.info("NIM endpoint reachable: %s | models=%s", models_url, model_ids)
+        else:
+            logger.warning("NIM endpoint check failed: %s returned HTTP %s", models_url, res.status_code)
+    except Exception as exc:
+        logger.warning("NIM endpoint check failed for %s: %s", models_url, exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Start Phoenix tracing UI before graph initialization.
     setup_phoenix(port=6006)
+    _validate_nim_endpoint()
 
     # Warm up graph once during startup.
     logger.info("Initializing CZK graph...")

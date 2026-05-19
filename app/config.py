@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     # App
     app_host: str = "0.0.0.0"
-    app_port: int = 8000
+    app_port: int = 8080
     app_debug: bool = True
     app_title: str = "CZK - Centrum Zarzadzania Kryzysowego"
 

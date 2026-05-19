@@ -9,7 +9,6 @@
       "lon": 23.1688
     }
   },
-  "category_hint": "infrastructure",
   "description": "Awaria systemu grzewczego w głównym szpitalu. Generator uaktywniony, ale pojemność ograniczona. Przenoszenie pacjentów do cieplejszych oddziałów w toku.",
   "source": {
     "type": "citizen",

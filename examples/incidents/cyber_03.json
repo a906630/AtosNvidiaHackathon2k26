@@ -9,7 +9,6 @@
       "lon": 16.9252
     }
   },
-  "category_hint": "cyber",
   "description": "Kampania phishingu skierowana na pracowników szpitala ze złośliwym oprogramowaniem do kradzieży danych. Dwa konta administracyjne skompromitowane, dane pacjentów zagrożone.",
   "source": {
     "type": "sensor",

@@ -9,7 +9,6 @@
       "lon": 19.0238
     }
   },
-  "category_hint": "cyber",
   "description": "Podejrzana kompromisacja łańcucha dostaw w fabryce. Aktualizacje oprogramowania układowego dla kontrolerów przemysłowych zawierają złośliwy kod. Produkcja zatrzymana w celu weryfikacji.",
   "source": {
     "type": "citizen",

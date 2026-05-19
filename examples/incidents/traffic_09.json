@@ -9,7 +9,6 @@
       "lon": 14.5528
     }
   },
-  "category_hint": "traffic",
   "description": "Awaria przejazdu kolejowego utrzymująca bramy zamknięte. Dostęp drogowy zablokowany dla pociągów przechodzących. Ruch cofający się na trasach równoległych.",
   "source": {
     "type": "sensor",

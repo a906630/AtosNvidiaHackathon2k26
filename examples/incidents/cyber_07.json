@@ -9,7 +9,6 @@
       "lon": 19.456
     }
   },
-  "category_hint": "cyber",
   "description": "Wzrost aktywności botnetów wykryty w sieci uniwersytetu. Tysiące komputerów studentów zainfekowanych górnikiem kryptowalut. Izolacja sieci i czyszczenie w toku.",
   "source": {
     "type": "institution",

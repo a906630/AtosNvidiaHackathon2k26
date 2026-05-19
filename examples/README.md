@@ -110,7 +110,7 @@ python examples/send_incidents.py --api-url http://localhost:8080
 
 ```
 Found 50 incident files
-API base URL: http://localhost:8000
+API base URL: http://localhost:8080
 --------------------------------------------------------------------------------
 ✓ cyber_01.json                 incident_id=incident_6f7c4a2b
 ✓ cyber_02.json                 incident_id=incident_8d2e5b9a
@@ -137,7 +137,6 @@ Each JSON file follows the `IncidentInput` schema:
       "lon": 21.0122
     }
   },
-  "category_hint": "flood",
   "description": "Incident description...",
   "source": {
     "type": "citizen|institution|sensor|social_media",
@@ -175,12 +174,12 @@ Open another terminal and watch SSE stream for an incident:
 
 ```bash
 # After sending incidents, get one incident_id from output
-curl http://localhost:8000/viz/stream/{incident_id}
+curl http://localhost:8080/viz/stream/{incident_id}
 ```
 
 ### Test 3: Check Realtime Metrics
 ```bash
-curl http://localhost:8000/api/v1/metrics/live?window_minutes=5
+curl http://localhost:8080/api/v1/metrics/live?window_minutes=5
 ```
 
 ## Performance Notes
@@ -231,7 +230,6 @@ Create a new incident JSON file:
       "lon": 17.0385
     }
   },
-  "category_hint": "flood",
   "description": "Your custom incident description with sufficient detail (min 10 chars).",
   "source": {
     "type": "citizen",
@@ -249,7 +247,7 @@ import json
 import httpx
 with open('examples/incidents/custom_incident.json') as f:
     data = json.load(f)
-response = httpx.post('http://localhost:8000/api/v1/incidents', json=data)
+response = httpx.post('http://localhost:8080/api/v1/incidents', json=data)
 print(response.json())
 "
 ```
@@ -266,7 +264,7 @@ print(response.json())
 
 For issues or questions:
 1. Check API logs: `tail -f main.log`
-2. Verify API health: `curl http://localhost:8000/health`
+2. Verify API health: `curl http://localhost:8080/health`
 3. Review incident schema in `app/schemas.py`
 4. Test single incident manually with curl or Postman
 

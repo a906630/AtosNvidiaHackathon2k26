@@ -49,6 +49,9 @@ async def send_incident(client: httpx.AsyncClient, api_url: str, incident_file: 
     with open(incident_file, "r", encoding="utf-8") as f:
         payload = json.load(f)
 
+    # Supervisor is responsible for classification; never force category hint from examples.
+    payload.pop("category_hint", None)
+
     try:
         log_info(f"Wysyłanie: {incident_file.name} — {payload.get('description', '')[:60]}...")
         response = await client.post(
@@ -79,7 +82,7 @@ async def send_incident(client: httpx.AsyncClient, api_url: str, incident_file: 
 async def main() -> int:
     """Main entry point."""
     # Parse arguments
-    api_url = "http://localhost:8000"
+    api_url = "http://localhost:8080"
     if "--api-url" in sys.argv:
         idx = sys.argv.index("--api-url")
         if idx + 1 < len(sys.argv):

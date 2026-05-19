@@ -9,7 +9,6 @@
       "lon": 21.1288
     }
   },
-  "category_hint": "cyber",
   "description": "Luka SQL injection w starszym systemie bazy danych firmy ubezpieczeniowej. Testowy ciąg połączenia ujawniony w repozytorium kodu źródłowego. Natychmiastowe łatanie zainicjowane.",
   "source": {
     "type": "social_media",

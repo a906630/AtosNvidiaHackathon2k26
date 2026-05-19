@@ -9,7 +9,6 @@
       "lon": 23.1688
     }
   },
-  "category_hint": "flood",
   "description": "Dopływ rzeki Bug zalewa tereny rolnicze. Systemy nawadniające uszkodzone, straty upraw szacowane na tysiące hektarów.",
   "source": {
     "type": "sensor",

@@ -188,8 +188,8 @@ python main.py
 
 Po starcie:
 
-- app: `http://localhost:8000`
-- docs: `http://localhost:8000/docs`
+- app: `http://localhost:8080`
+- docs: `http://localhost:8080/docs`
 - traces (Phoenix): `http://localhost:6006`
 
 ## Uruchomienie w Docker (GPU)
@@ -384,7 +384,7 @@ python examples/send_incidents.py
    ```
    ==================================================
    [14:23:45] ℹ️  Znaleziono 50 incydentów do wysłania
-   [14:23:45] ℹ️  Adres API: http://localhost:8000
+   [14:23:45] ℹ️  Adres API: http://localhost:8080
    [14:23:45] ℹ️  [1/50] Przetwarzanie...
    [14:23:46] ✅ flood_01.json → incident_a1b2c3d4
    [14:23:46] ✅ flood_02.json → incident_x5y6z7w8
@@ -396,11 +396,11 @@ python examples/send_incidents.py
 
 3. Monitoruj SSE stream incydentu:
 ```bash
-curl http://localhost:8000/viz/stream/{incident_id}
+curl http://localhost:8080/viz/stream/{incident_id}
 ```
 
 4. **W dashboardzie** — nowa funkcjonalność przełączania między incydentami:
-   - Przejdź do `http://localhost:8000`
+   - Przejdź do `http://localhost:8080`
    - Sekcja "🔄 Przełącz incydent" pokazuje listę wszystkich wysłanych incydentów
    - Kliknij na incydent, aby załadować jego SSE stream i wyświetlić wyniki
    - Przycisk "🔄 Odśwież" aktualizuje listę co 10 sekund automatycznie

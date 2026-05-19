@@ -9,7 +9,6 @@
       "lon": 18.6466
     }
   },
-  "category_hint": "cyber",
   "description": "Aktywność grupy APT wykryta w sieci przedsiębiorstwa energetyki. Ruch boczny próbujący dostać się do systemów SCADA. Zespół reagowania na incydenty zmobilizowany.",
   "source": {
     "type": "sensor",

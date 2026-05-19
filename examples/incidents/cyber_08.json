@@ -9,7 +9,6 @@
       "lon": 18.5952
     }
   },
-  "category_hint": "cyber",
   "description": "Atak man-in-the-middle przechwytujący certyfikaty SSL do transakcji finansowych. Podejrzane uzgodnienia TLS zarejestrowane. Poradnik CERT Polska wydany.",
   "source": {
     "type": "sensor",

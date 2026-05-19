@@ -9,7 +9,6 @@
       "lon": 16.9252
     }
   },
-  "category_hint": "terror",
   "description": "Alert dużego zgromadzenia w pobliżu zabytkowej witryny. Intelijen sugeruje potencjalne zagrożenie bezpieczeństwa. Rozmieszczenie policji prewencyjnej i środki kontroli tłumu zainicjowane.",
   "source": {
     "type": "sensor",

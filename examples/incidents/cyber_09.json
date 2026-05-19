@@ -9,7 +9,6 @@
       "lon": 14.5528
     }
   },
-  "category_hint": "cyber",
   "description": "Wykryto egzfiltrację danych z działu księgowości. Prywatne rejestry finansowe pobrane na zewnętrzny adres IP. Dochodzenie w toku ze wsparciem organów ścigania.",
   "source": {
     "type": "citizen",
