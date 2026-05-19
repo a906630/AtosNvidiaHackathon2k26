@@ -3,6 +3,9 @@ Advanced credibility assessment model for domain verification.
 
 Uses multiple evidence signals to generate reliable credibility scores
 instead of hardcoded thresholds.
+
+Philosophy: START SKEPTICAL. Every incident is unverified until proven otherwise.
+Credibility must be EARNED through independent corroboration, not assumed.
 """
 import re
 from typing import Optional
@@ -13,20 +16,21 @@ class AdvancedCredibilityModel:
     Multi-factor credibility assessment model.
 
     Scores are based on:
-    - Raw results count and quality
-    - Reranked results count and relevance
+    - Independent evidence corroboration (not just keyword echo)
+    - Reranked results quality and diversity
     - Description specificity (numbers, dates, locations)
-    - Evidence coherence (overlapping keywords)
-    - Evidence freshness
+    - Source diversity (multiple independent sources)
+    - Evidence freshness and relevance
     """
 
-    # Weights for different signals
+    # Weights for different signals — evidence-heavy, description-light
     WEIGHTS = {
-        "raw_results_count": 0.10,      # Did we find any results?
-        "reranked_results_count": 0.15,  # Did top results survive reranking?
-        "description_specificity": 0.15, # Is description concrete?
-        "evidence_coherence": 0.30,      # Do multiple sources mention same things?
-        "search_error_penalty": 0.30,    # Did search work at all?
+        "raw_results_count": 0.08,       # Did we find any results?
+        "reranked_results_count": 0.12,   # Did top results survive reranking?
+        "description_specificity": 0.10,  # Is description concrete? (LOW weight — easy to fake)
+        "evidence_coherence": 0.35,       # Do multiple INDEPENDENT sources corroborate?
+        "source_diversity": 0.15,         # Are results from different sources?
+        "search_error_penalty": 0.20,     # Did search work at all?
     }
 
     @staticmethod
@@ -34,21 +38,15 @@ class AdvancedCredibilityModel:
         """
         Extract specificity signals from incident description.
 
-        Returns float 0.0-1.0 based on presence of:
-        - Numbers (casualties, damage amount, etc.)
-        - Dates/times
-        - Named locations/landmarks
-        - Measurements/quantities
-        - Specific actions/verbs
+        Returns float 0.0-1.0 based on presence of concrete details.
+        NOTE: Specificity alone does NOT equal credibility — fabricated reports
+        can be highly specific. This signal has LOW weight in final score.
         """
         if not description:
             return 0.0
 
         description_lower = description.lower()
-        specificity_score = 0.0
-        signal_count = 0
 
-        # Number of detailed incident indicators
         has_numbers = bool(re.search(r'\d+', description))
         has_times = bool(re.search(r'\d{1,2}:\d{2}|\d{1,2}:\d{2}:\d{2}', description))
         has_quantities = bool(re.search(r'(liczba|ilosc|kilka|wiele|dziesiątki|setki|tysiące)', description_lower))
@@ -69,14 +67,37 @@ class AdvancedCredibilityModel:
             (has_duration, 1),
         ]
 
-        for has_signal, weight in signals:
-            if has_signal:
-                specificity_score += weight
-                signal_count += 1
-
-        # Normalize to 0-1
+        specificity_score = sum(weight for has_signal, weight in signals if has_signal)
         max_score = sum(w for _, w in signals)
         return min(1.0, specificity_score / max_score) if max_score > 0 else 0.0
+
+    @staticmethod
+    def _extract_key_terms(text: str) -> set[str]:
+        """Extract meaningful key terms from text, filtering stop words."""
+        stop_words = {
+            'że', 'do', 'na', 'w', 'z', 'to', 'się', 'po', 'co', 'dla',
+            'jest', 'są', 'bądź', 'być', 'był', 'byli', 'nie', 'czy',
+            'od', 'przez', 'przy', 'który', 'która', 'które', 'i', 'lub',
+            'ale', 'albo', 'jak', 'gdzie', 'kiedy', 'dlaczego', 'ile',
+            'tego', 'tej', 'ten', 'tym', 'tych', 'tam', 'tutaj', 'też',
+            'tylko', 'jeszcze', 'już', 'bardzo', 'może', 'tak', 'więc',
+            'about', 'the', 'and', 'for', 'with', 'from', 'that', 'this',
+            'was', 'were', 'are', 'has', 'have', 'been', 'will', 'would',
+            'incident', 'event', 'situation', 'report', 'crisis',
+        }
+        words = re.findall(r'\b\w+\b', text.lower())
+        return {w for w in words if len(w) > 3 and w not in stop_words}
+
+    @staticmethod
+    def _filter_valid_results(results: list[str]) -> list[str]:
+        """Filter out error messages and noise from search results."""
+        return [
+            r for r in results
+            if r.strip()
+            and not r.startswith("[search-error")
+            and not r.startswith("[search-tool")
+            and len(r.strip()) > 20  # Skip very short snippets (likely noise)
+        ]
 
     @staticmethod
     def calculate_evidence_coherence(
@@ -85,35 +106,64 @@ class AdvancedCredibilityModel:
         top_results: list[str],
     ) -> float:
         """
-        Calculate coherence between description and evidence.
+        Calculate INDEPENDENT corroboration between description and evidence.
 
-        Extracts key terms from description and checks if they appear
-        in search results (suggesting corroboration across sources).
+        CRITICAL: Search results often echo the query terms (because the query
+        was derived from the description). True corroboration requires results
+        to contain ADDITIONAL specific details not present in the description,
+        or to come from clearly independent/authoritative sources.
         """
-        if not description or not (raw_results or top_results):
+        if not description:
             return 0.0
 
-        # Extract key terms (>3 chars, not stop words)
-        stop_words = {
-            'że', 'do', 'na', 'w', 'z', 'to', 'się', 'po', 'co', 'dla',
-            'jest', 'są', 'bądź', 'być', 'był', 'byli', 'nie', 'czy',
-            'od', 'przez', 'przy', 'który', 'która', 'które', 'i', 'lub',
-            'ale', 'albo', 'jak', 'gdzie', 'kiedy', 'dlaczego', 'ile',
-        }
+        valid_raw = AdvancedCredibilityModel._filter_valid_results(raw_results)
+        valid_top = AdvancedCredibilityModel._filter_valid_results(top_results)
 
-        words = re.findall(r'\b\w+\b', description.lower())
-        key_terms = [w for w in words if len(w) > 3 and w not in stop_words]
-
-        if not key_terms:
+        if not valid_raw and not valid_top:
             return 0.0
 
-        # Count how many key terms appear in results
-        combined_results = ' '.join(raw_results + top_results).lower()
-        matching_terms = sum(1 for term in key_terms if term in combined_results)
+        desc_terms = AdvancedCredibilityModel._extract_key_terms(description)
+        if not desc_terms:
+            return 0.0
 
-        # Coherence = ratio of matching key terms
-        coherence = matching_terms / len(key_terms) if key_terms else 0.0
-        return min(1.0, coherence)
+        # Check each result individually for term overlap
+        all_results = valid_top if valid_top else valid_raw
+        result_scores: list[float] = []
+
+        for result_text in all_results:
+            result_terms = AdvancedCredibilityModel._extract_key_terms(result_text)
+            if not result_terms:
+                continue
+
+            # Overlap: how many description terms appear in this result
+            overlap = desc_terms & result_terms
+            overlap_ratio = len(overlap) / len(desc_terms) if desc_terms else 0.0
+
+            # NEW information: terms in result NOT in description (independent info)
+            new_info = result_terms - desc_terms
+            new_info_ratio = len(new_info) / max(len(result_terms), 1)
+
+            # Good corroboration = moderate overlap + significant new information
+            # Pure echo (high overlap, no new info) = low corroboration
+            if overlap_ratio > 0.1 and new_info_ratio > 0.3:
+                # Result contains related content AND adds new details
+                result_scores.append(min(1.0, overlap_ratio * 0.5 + new_info_ratio * 0.5))
+            elif overlap_ratio > 0.3:
+                # Some overlap but might just be echoing the query
+                result_scores.append(overlap_ratio * 0.25)
+            else:
+                result_scores.append(0.0)
+
+        if not result_scores:
+            return 0.0
+
+        # Average of top results, but penalize if only 1 source
+        avg_score = sum(sorted(result_scores, reverse=True)[:3]) / min(3, len(result_scores))
+
+        # Source diversity bonus: more corroborating results = more trustworthy
+        diversity_bonus = min(0.15, len([s for s in result_scores if s > 0.1]) * 0.05)
+
+        return min(1.0, avg_score + diversity_bonus)
 
     @staticmethod
     def compute_credibility_score(
@@ -126,50 +176,70 @@ class AdvancedCredibilityModel:
         """
         Compute credibility score based on multiple evidence signals.
 
-        Returns float 0.0-1.0 (will be converted to percentage in UI).
+        Philosophy: START LOW, EARN TRUST.
+        Base score is near zero. Only independent evidence raises credibility.
         """
 
-        # If search completely failed, low score
-        if has_search_errors and not raw_results:
-            return 0.20  # Some baseline credibility from description alone
+        # Filter noise from results
+        valid_raw = AdvancedCredibilityModel._filter_valid_results(raw_results)
+        valid_top = AdvancedCredibilityModel._filter_valid_results(top_results)
 
-        base_score = 0.25  # Baseline from description
+        # If search completely failed, very low score
+        if has_search_errors and not valid_raw:
+            return 0.10  # Minimal baseline — we know nothing
 
-        # Signal 1: Raw results count (0-1.0)
-        raw_count_score = min(1.0, len(raw_results) / 5.0) if raw_results else 0.0
+        # START LOW: unverified report baseline
+        base_score = 0.10
+
+        # Signal 1: Valid raw results count (0-1.0)
+        raw_count_score = min(1.0, len(valid_raw) / 6.0)
 
         # Signal 2: Top reranked results count (0-1.0)
-        reranked_count_score = min(1.0, len(top_results) / 3.0) if top_results else 0.0
+        reranked_count_score = min(1.0, len(valid_top) / 4.0)
 
-        # Signal 3: Description specificity (0-1.0)
+        # Signal 3: Description specificity (0-1.0) — low weight, easy to fake
         specificity_score = AdvancedCredibilityModel.extract_specificity_signals(description)
 
-        # Signal 4: Evidence coherence (0-1.0)
+        # Signal 4: Evidence coherence — the MAIN signal (0-1.0)
         coherence_score = AdvancedCredibilityModel.calculate_evidence_coherence(
             description, raw_results, top_results
         )
 
-        # Signal 5: Search error penalty
-        error_penalty = 1.0 if not has_search_errors else 0.7
+        # Signal 5: Source diversity (unique meaningful results)
+        unique_snippets = set()
+        for r in valid_top:
+            # Use first 80 chars as fingerprint to detect duplicates
+            unique_snippets.add(r[:80].lower().strip())
+        diversity_score = min(1.0, len(unique_snippets) / 3.0)
 
-        # Weighted combination
-        weighted_score = (
-            base_score +
-            (raw_count_score * AdvancedCredibilityModel.WEIGHTS["raw_results_count"]) +
-            (reranked_count_score * AdvancedCredibilityModel.WEIGHTS["reranked_results_count"]) +
-            (specificity_score * AdvancedCredibilityModel.WEIGHTS["description_specificity"]) +
-            (coherence_score * AdvancedCredibilityModel.WEIGHTS["evidence_coherence"]) +
-            ((error_penalty - 0.7) * AdvancedCredibilityModel.WEIGHTS["search_error_penalty"])
-        )
+        # Signal 6: Search error penalty
+        error_multiplier = 1.0 if not has_search_errors else 0.6
 
-        # Cap at 1.0 and apply minimum based on evidence availability
-        final_score = min(1.0, weighted_score)
+        weights = AdvancedCredibilityModel.WEIGHTS
 
-        # If no realtime evidence at all, cap lower
+        # Weighted combination (additive on top of low base)
+        evidence_score = (
+            (raw_count_score * weights["raw_results_count"]) +
+            (reranked_count_score * weights["reranked_results_count"]) +
+            (specificity_score * weights["description_specificity"]) +
+            (coherence_score * weights["evidence_coherence"]) +
+            (diversity_score * weights["source_diversity"])
+        ) * error_multiplier
+
+        final_score = base_score + evidence_score
+
+        # Hard caps based on evidence availability
         if not has_realtime_evidence:
-            final_score = min(final_score, 0.45)
+            # No independent evidence at all: cap at 0.25 max
+            final_score = min(final_score, 0.25)
+        elif len(valid_top) == 0:
+            # Had search but no relevant results survived reranking
+            final_score = min(final_score, 0.30)
+        elif len(valid_top) == 1:
+            # Only one source: limited corroboration
+            final_score = min(final_score, 0.50)
 
-        return round(final_score, 3)
+        return round(min(1.0, final_score), 3)
 
     @staticmethod
     def compute_deepfake_risk(
@@ -180,24 +250,33 @@ class AdvancedCredibilityModel:
         """
         Estimate deepfake/false-positive risk.
 
-        Higher risk if:
-        - Low coherence (description doesn't match search results)
-        - Very generic description
-        - Results talk about similar but different incidents
+        START HIGH (skeptical). Risk decreases only with strong evidence.
         """
+        valid_top = AdvancedCredibilityModel._filter_valid_results(top_results)
 
-        # Base risk
-        risk = 0.30
+        # Start skeptical
+        risk = 0.55
 
-        # Reduce risk if coherence is high (sources align)
-        coherence_penalty = coherence_score * 0.25
-        risk -= coherence_penalty
+        # Reduce risk proportionally to coherence (strong corroboration = less risk)
+        risk -= coherence_score * 0.30
+
+        # Reduce risk if multiple independent results exist
+        if len(valid_top) >= 3:
+            risk -= 0.10
+        elif len(valid_top) >= 1:
+            risk -= 0.05
 
         # Increase risk if description is too generic
         if len(description) < 50:
+            risk += 0.20
+        elif len(description) < 100:
+            risk += 0.10
+
+        # Increase risk for very short or no results
+        if len(valid_top) == 0:
             risk += 0.15
 
-        # Check for conflicting signals (e.g., "recent flood" but results talk about drought)
+        # Check for conflicting signals
         description_lower = description.lower()
         conflict_pairs = [
             (r'zalew|powodz|woda|topn', r'suszy|susza|sucho'),
@@ -211,7 +290,7 @@ class AdvancedCredibilityModel:
             if has_positive and has_negative:
                 risk += 0.20
 
-        return min(1.0, max(0.0, risk))
+        return round(min(1.0, max(0.05, risk)), 3)
 
 
 def estimate_llm_credibility_bounds(
@@ -222,25 +301,32 @@ def estimate_llm_credibility_bounds(
     Estimate reasonable bounds for LLM credibility score based on
     how much evidence was actually found and reranked.
 
-    Returns (min_bound, max_bound) for LLM output validation.
+    These bounds CONSTRAIN the LLM output to prevent hallucinated confidence.
+    Philosophy: without strong evidence, LLM cannot claim high credibility.
     """
 
-    # No results at all: very constrained
+    # No results at all: LLM has nothing to base credibility on
     if raw_results_count == 0:
-        return (0.10, 0.30)
+        return (0.05, 0.20)
 
-    # Few raw results, few reranked
+    # Very few raw results, almost nothing reranked
     if raw_results_count < 3 and top_results_count < 2:
-        return (0.20, 0.50)
+        return (0.10, 0.35)
 
-    # Moderate results
+    # Some results but limited reranking
+    if raw_results_count >= 3 and top_results_count < 2:
+        return (0.15, 0.45)
+
+    # Moderate results with decent reranking
     if raw_results_count >= 3 and top_results_count >= 2:
-        return (0.35, 0.85)
+        return (0.20, 0.65)
 
-    # Good results
+    # Good results with strong reranking
     if raw_results_count >= 5 and top_results_count >= 3:
-        return (0.50, 0.95)
+        return (0.30, 0.80)
 
     # Excellent results
-    return (0.65, 1.0)
+    if raw_results_count >= 8 and top_results_count >= 4:
+        return (0.40, 0.90)
 
+    return (0.15, 0.50)

@@ -425,15 +425,18 @@ def make_domain_verifier_node(llm, search_tool, domain: str):
 
          numbered = "\n".join(f"[{index + 1}] {snippet}" for index, snippet in enumerate(top_results))
 
-         prompt = f"""You are a {domain} verification agent for Poland crisis operations.
-Use the curated public source catalog and open-web findings to assess credibility.
+         prompt = f"""You are a SKEPTICAL {domain} verification agent for Poland crisis operations.
+Your job is to critically evaluate whether the reported incident is real and corroborated by independent sources.
 
-Guidelines:
-1) Base assessment primarily on Search snippets evidence (if available).
-2) Consider description specificity and coherence with search results.
-3) Report corroborating_evidence=false if snippets are insufficient/unavailable.
-4) If no snippet evidence: credibility_score should reflect description quality only.
-5) Never claim certainty without supporting evidence.
+CRITICAL RULES FOR SCORING:
+1) START WITH LOW CREDIBILITY (0.10-0.20). Only RAISE it if search snippets provide INDEPENDENT corroboration.
+2) Search snippets may simply echo the original report — that is NOT corroboration. Look for NEW details, different perspectives, or official confirmations.
+3) If snippets are generic news or unrelated: credibility_score MUST stay below 0.30.
+4) If snippets confirm the incident with specific matching details from DIFFERENT sources: credibility can go to 0.40-0.70.
+5) Only if multiple authoritative sources (government, emergency services, verified media) independently confirm: credibility can exceed 0.70.
+6) corroborating_evidence=true ONLY if at least 2 snippets independently confirm key facts.
+7) deepfake_risk should be HIGH (>0.50) unless strong independent evidence exists.
+8) Never assume credibility — PROVE it from the evidence.
 
 Domain: {domain}
 Location: {location_str}
@@ -441,19 +444,19 @@ Date: {date_str}
 Description: {description}
 Curated sources: {source_digest(domain)}
 Suggested X tags: {social_tags(domain)}
-Found {len(top_results)} relevant search results to evaluate.
+Found {len(top_results)} search results to evaluate critically.
 
-Search snippets:
+Search snippets (evaluate each for independence and relevance):
 {numbered}
 
 Return JSON only:
 {{
-  "credibility_score": 0.0,
-  "deepfake_risk": 0.0,
-  "reasoning": "short rationale",
+  "credibility_score": 0.15,
+  "deepfake_risk": 0.55,
+  "reasoning": "short critical rationale — explain what evidence supports or contradicts the report",
   "sources_found": ["url or source name"],
   "key_findings": ["finding"],
-  "corroborating_evidence": true,
+  "corroborating_evidence": false,
   "related_categories": ["flood|cyber|terror|infrastructure|traffic|services"],
   "confidence": "high|medium|low"
 }}"""
