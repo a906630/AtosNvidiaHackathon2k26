@@ -76,65 +76,137 @@ Po starcie:
 - docs: `http://localhost:8000/docs`
 - traces (Phoenix): `http://localhost:6006`
 
+## Uruchomienie w Docker (GPU)
+
+W repo są gotowe pliki: `Dockerfile`, `.dockerignore`, `docker-compose.yml`.
+
+### Build obrazu
+
+```bash
+docker build -t czk-api:latest .
+```
+
+### Run kontenera (GPU + host NIM)
+
+> Dla scenariusza, gdzie NIM działa na hoście Brev na porcie `8000`.
+
+```bash
+docker run --rm -it \
+  --gpus all \
+  --network host \
+  --env-file .env \
+  -e APP_PORT=8080 \
+  -e NVIDIA_BASE_URL=http://localhost:8000/v1 \
+  czk-api:latest
+```
+
+API będzie wtedy dostępne na `http://localhost:8080`.
+
+### Alternatywa: docker compose
+
+`docker-compose.yml` mapuje port `8080` dla API i `6006` dla Phoenix.
+Jeśli NIM działa na hoście Linux/Brev, ustaw w `.env`:
+
+`NVIDIA_BASE_URL=http://host.docker.internal:8000/v1`
+
+Następnie uruchom:
+
+```bash
+docker compose up --build
+```
+
+### Skróty przez Makefile
+
+Repo zawiera `Makefile`, który opakowuje najczęstsze komendy Docker Compose.
+
+```bash
+make build
+make up-d
+make logs
+make smoke
+make down
+```
+
 ---
 
-## Deployment na NVIDIA Brev - krok po kroku
+## Deployment na NVIDIA Brev (L40S) - krok po kroku
 
-Poniższe kroki zakladaja, ze instancja ma dostep do internetu i GPU.
+Poniższe kroki zakładają, że instancja ma dostęp do internetu i GPU.
 
-### Krok 1 - wybierz instancje
+### Krok 1 - wybierz instancję
 
-Rekomendacje (praktyczne):
+Minimalny rekomendowany profil dla tego projektu: **1x L40S**.
 
-1. **MVP / szybkie demo**: T4 lub L4 (nizszy koszt, wystarczajace do testow przeplywu).
-2. **Lepsza responsywnosc i wiekszy ruch**: A10G / L40.
-3. **Ciezsze modele, duze obciazenie**: A100/H100.
+Dlaczego L40S:
 
-### Krok 2 - przygotuj srodowisko
+1. Dużo lepszy zapas VRAM niż T4/L4 dla większych modeli NIM.
+2. Stabilniejsza latencja przy równoległych requestach agentów.
+3. Lepszy margines dla dodatkowego obciążenia (np. reranking CUDA).
+
+### Krok 2 - przygotuj środowisko
 
 ```bash
 git clone {{repo_address}}
 cd NvidiaHackathon2k26
-python -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-```
-
-### Krok 3 - zainstaluj CUDA-enabled PyTorch i zaleznosci
-
-```bash
-pip install torch --index-url https://download.pytorch.org/whl/cu124
-pip install -r requirements.txt
-```
-
-### Krok 4 - skonfiguruj ENV
-
-```bash
 cp .env.example .env
 ```
 
-Ustaw w `.env`:
+### Krok 3 - uruchom NIM na hoście Brev
 
-- `NVIDIA_BASE_URL` (lokalny NIM lub chmura NVIDIA)
-- `NVIDIA_MODEL`
-- `NVIDIA_API_KEY` (`no-key` dla local NIM)
+Upewnij się, że lokalny endpoint NIM odpowiada na porcie `8000` (lub dostosuj port).
 
-### Krok 5 - uruchom aplikacje
+Przykład szybkiej weryfikacji:
 
 ```bash
-python main.py
+curl http://localhost:8000/v1/models
+```
+
+### Krok 4 - zbuduj obraz aplikacji
+
+```bash
+docker build -t czk-api:latest .
+```
+
+### Krok 5 - uruchom kontener aplikacji na L40S
+
+W trybie host-network `localhost:8000` wskazuje hostowy NIM, a API uruchamiamy na `8080`, by uniknąć konfliktu portów.
+
+```bash
+docker run --rm -it \
+  --gpus all \
+  --network host \
+  --env-file .env \
+  -e APP_PORT=8080 \
+  -e NVIDIA_BASE_URL=http://localhost:8000/v1 \
+  czk-api:latest
 ```
 
 ### Krok 6 - smoke test
 
 ```bash
-curl http://localhost:8000/health
-curl http://localhost:8000/viz/graph/json
+curl http://localhost:8080/health
+curl http://localhost:8080/viz/graph/json
 ```
 
-### Krok 7 - operacyjnie (rekomendacje)
+W odpowiedzi `/health` sprawdź:
 
-1. Wlacz forward portow: `8000` (API), `6006` (Phoenix).
+- `status: ok`
+- `gpu.cuda_available: true` (jeśli środowisko ma poprawnie podpięte GPU)
+- poprawny `nvidia_base_url`
+
+### Krok 7 - wariant z docker compose
+
+W `.env` ustaw URL do hosta:
+
+`NVIDIA_BASE_URL=http://host.docker.internal:8000/v1`
+
+```bash
+docker compose up --build
+```
+
+### Krok 8 - operacyjnie (rekomendacje)
+
+1. Wlacz forward portow: `8080` (API), `6006` (Phoenix).
 2. Trzymaj `APP_DEBUG=false` poza demo.
 3. Przenies in-memory store do Redis/PostgreSQL przy dluzszym uzyciu.
 4. Dla wiekszego ruchu uruchamiaj przez process manager (np. `gunicorn` + `uvicorn workers`).
@@ -145,6 +217,10 @@ curl http://localhost:8000/viz/graph/json
 main.py
 requirements.txt
 .env.example
+Makefile
+Dockerfile
+.dockerignore
+docker-compose.yml
 langgraph.json
 app/
   config.py

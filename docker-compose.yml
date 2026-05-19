@@ -1,0 +1,22 @@
+services:
+  czk-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: czk-api
+    env_file:
+      - .env
+    environment:
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8080
+      APP_DEBUG: "false"
+      # For Linux hosts this alias allows reaching host NIM from container.
+      # Example: NVIDIA_BASE_URL=http://host.docker.internal:8000/v1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8080:8080"
+      - "6006:6006"
+    gpus: all
+    restart: unless-stopped
+
