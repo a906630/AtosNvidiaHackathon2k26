@@ -342,12 +342,18 @@ Return JSON only:
                     "timestamp": _now(),
                     "details": {
                         "domain": domain,
+                        "media_sources_checked": {
+                            "curated_urls": source_urls(domain),
+                            "x_hashtags_monitored": social_tags(domain),
+                            "total_queries_executed": len(queries[:8]),
+                        },
                         "queries": queries[:8],
                         "curated_sources": source_urls(domain),
                         "social_tags": social_tags(domain),
                         "results_fetched": len(raw_results),
                         "results_after_reranking": len(top_results),
                         "reranking_device": reranker.device,
+                        "top_results_preview": top_results[:2] if len(top_results) >= 2 else top_results,
                         "related_categories": related,
                         "confidence": result.get("confidence", "medium"),
                         "guardrails": guard_info,
