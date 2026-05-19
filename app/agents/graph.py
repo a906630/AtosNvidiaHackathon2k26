@@ -68,6 +68,23 @@ def _parse_json(text: str) -> dict:
     return json.loads(text)
 
 
+def _as_str(value, default: str = "") -> str:
+    return value if isinstance(value, str) else default
+
+
+def _as_list_str(value) -> list[str]:
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, str)]
+    return []
+
+
+def _as_float(value, default: float) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return default
+
+
 def _recent_incidents_context(incidents: list[dict], limit: int = 25) -> str:
     """Build a compact multi-incident context for correlation prompts."""
     recent = incidents[-limit:]
@@ -319,8 +336,8 @@ Return JSON only:
             }
             guard_info = {"blocked": False}
 
-        category = _normalize_category(result.get("category"))
-        related = [_normalize_category(item) for item in result.get("related_categories", [])]
+        category = _normalize_category(_as_str(result.get("category"), "unknown"))
+        related = [_normalize_category(item) for item in _as_list_str(result.get("related_categories"))]
         related = [item for item in related if item not in {"unknown", category}]
         selected_domains = _select_domains(category, related)
 
@@ -430,27 +447,19 @@ Return JSON only:
             }
             guard_info = {"blocked": False}
 
-        related = [_normalize_category(item) for item in result.get("related_categories", [])]
+        related = [_normalize_category(item) for item in _as_list_str(result.get("related_categories"))]
         related = [item for item in related if item not in {"unknown", domain}]
 
         return {
             "domain_verifications": {
                 domain: {
-                    "credibility_score": float(result.get("credibility_score", 0.5)),
-                    "deepfake_risk": float(result.get("deepfake_risk", 0.3)),
-                    "reasoning": result.get("reasoning", ""),
-                    "sources_found": result.get("sources_found", []),
-                    "key_findings": result.get("key_findings", []),
+                    "credibility_score": _as_float(result.get("credibility_score", 0.5), 0.5),
+                    "deepfake_risk": _as_float(result.get("deepfake_risk", 0.3), 0.3),
+                    "reasoning": _as_str(result.get("reasoning"), ""),
+                    "sources_found": _as_list_str(result.get("sources_found")),
+                    "key_findings": _as_list_str(result.get("key_findings")),
                     "corroborating_evidence": bool(result.get("corroborating_evidence", False)),
                 }
-            },
-            "credibility_result": {
-                "credibility_score": float(result.get("credibility_score", 0.5)),
-                "deepfake_risk": float(result.get("deepfake_risk", 0.3)),
-                "reasoning": result.get("reasoning", ""),
-                "sources_found": result.get("sources_found", []),
-                "key_findings": result.get("key_findings", []),
-                "corroborating_evidence": bool(result.get("corroborating_evidence", False)),
             },
             "related_categories": sorted(set((state.get("related_categories", []) or []) + related)),
             "processing_log": [
@@ -542,7 +551,7 @@ Return JSON only:
             }
             guard_info = {"blocked": False}
 
-        llm_related = [_normalize_category(item) for item in result.get("related_categories", [])]
+        llm_related = [_normalize_category(item) for item in _as_list_str(result.get("related_categories"))]
         merged_related = sorted(set([item for item in related + inferred + llm_related if item not in {"unknown", category}]))
 
         realtime_load = get_live_metrics(window_minutes=15)

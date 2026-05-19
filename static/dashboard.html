@@ -152,7 +152,7 @@
             class="bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 px-4 rounded transition text-sm">
             📋 Przykład
           </button>
-          <button onclick="resetUI()"
+          <button onclick="resetFormOnly()"
             class="bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 px-4 rounded transition text-sm">
             🔄 Reset
           </button>
@@ -381,9 +381,15 @@
       <section class="agent-card rounded-xl p-5 flex flex-col" style="opacity:1; min-height:300px">
         <div class="flex items-center justify-between mb-3">
           <h2 class="text-gray-500 text-xs uppercase tracking-widest">📡 Live event log</h2>
-          <div id="processing-indicator" class="hidden flex items-center gap-2 text-xs text-[#76b900]">
-            <div class="w-2 h-2 rounded-full bg-[#76b900] animate-ping"></div>
-            przetwarzanie...
+          <div class="flex items-center gap-2">
+            <button id="btn-retry" onclick="retryIncident()"
+              class="hidden bg-yellow-800 hover:bg-yellow-700 text-yellow-100 py-1 px-2 rounded transition text-xs">
+              ♻ Retry analizy
+            </button>
+            <div id="processing-indicator" class="hidden flex items-center gap-2 text-xs text-[#76b900]">
+              <div class="w-2 h-2 rounded-full bg-[#76b900] animate-ping"></div>
+              przetwarzanie...
+            </div>
           </div>
         </div>
         <div id="event-log"
@@ -409,6 +415,12 @@
             <div class="text-xs text-gray-500 mb-1">Wiarygodność</div>
             <div id="r-credibility" class="font-bold text-white text-sm">—</div>
           </div>
+        </div>
+
+        <div class="mb-4 bg-gray-900 rounded-lg p-3 border border-gray-800">
+          <div class="text-xs text-gray-400 mb-2">📷 Ocena wiarygodności (wizualizacja)</div>
+          <img id="r-prob-image" src="" alt="Probability visual"
+            class="w-full max-h-56 object-cover rounded border border-gray-700 hidden" />
         </div>
 
         <div id="r-review-banner" class="hidden mb-4 bg-yellow-900/40 border border-yellow-600 rounded-lg p-3 text-xs text-yellow-300">
@@ -576,11 +588,37 @@
 
       document.getElementById('r-json').textContent = JSON.stringify(result, null, 2);
       document.getElementById('p-detected-category').value = result.category || '—';
+
+      const score = cred && typeof cred.credibility_score === 'number'
+        ? Math.max(0, Math.min(100, Math.round(cred.credibility_score * 100)))
+        : null;
+      const image = document.getElementById('r-prob-image');
+      if (score === null) {
+        image.classList.add('hidden');
+      } else {
+        let file = 'dog_20.jpg';
+        if (score >= 80) file = 'dog_80.jpg';
+        else if (score >= 60) file = 'cat_60.jpg';
+        else if (score >= 40) file = 'cat_40.jpg';
+        image.src = `/static/images/${file}`;
+        image.classList.remove('hidden');
+      }
     }
 
     // ── main flow ──────────────────────────────────────────────
     let currentEventSource = null;
     let incidentsCache = [];
+    let currentIncidentId = null;
+
+    function resetFormOnly() {
+      ['f-voivodeship', 'f-municipality', 'f-description'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      const source = document.getElementById('f-source');
+      if (source) source.value = 'citizen';
+      addLogEntry('info', null, 'Wyczyszczono tylko pola formularza nowego zgłoszenia.');
+    }
 
     function fillIncidentPreview(incident) {
       const location = incident?.location || {};
@@ -643,6 +681,8 @@
 
     function startStreaming(incidentId) {
       if (currentEventSource) currentEventSource.close();
+      currentIncidentId = incidentId;
+      document.getElementById('btn-retry').classList.add('hidden');
 
       // Highlight first node
       setCardState('supervisor', 'running');
@@ -691,6 +731,7 @@
           document.getElementById('processing-indicator').classList.add('hidden');
           document.getElementById('btn-submit').disabled = false;
           document.getElementById('btn-submit').textContent = '▶ Wyślij zgłoszenie';
+          document.getElementById('btn-retry').classList.add('hidden');
           addLogEntry('done', null, '🎉 Przetwarzanie zakończone!');
           showResult(event.result);
           es.close();
@@ -701,14 +742,26 @@
           document.getElementById('processing-indicator').classList.add('hidden');
           document.getElementById('btn-submit').disabled = false;
           document.getElementById('btn-submit').textContent = '▶ Wyślij zgłoszenie';
+          document.getElementById('btn-retry').classList.remove('hidden');
           es.close();
         }
       };
 
       es.onerror = () => {
         addLogEntry('error', null, 'Połączenie SSE zerwane');
+        document.getElementById('btn-retry').classList.remove('hidden');
         es.close();
       };
+    }
+
+    function retryIncident() {
+      if (!currentIncidentId) {
+        addLogEntry('error', null, 'Brak aktywnego incident_id do ponownej analizy.');
+        return;
+      }
+      addLogEntry('info', null, `♻ Ponawiam analizę dla incydentu ${currentIncidentId}`);
+      resetUI(false);
+      startStreaming(currentIncidentId);
     }
 
     function loadExample() {
@@ -725,12 +778,6 @@
           const el = document.getElementById(id);
           if (el) el.value = '';
         });
-        ['p-voivodeship', 'p-municipality', 'p-source', 'p-timestamp', 'p-description'].forEach(id => {
-          const el = document.getElementById(id);
-          if (el) el.value = '';
-        });
-        const detectedCategory = document.getElementById('p-detected-category');
-        if (detectedCategory) detectedCategory.value = '—';
       }
       NODE_ORDER.forEach(n => {
         setCardState(n, 'idle');
@@ -740,6 +787,8 @@
       document.getElementById('result-section').classList.add('hidden');
       document.getElementById('processing-indicator').classList.add('hidden');
       document.getElementById('r-review-banner').classList.add('hidden');
+      document.getElementById('btn-retry').classList.add('hidden');
+      document.getElementById('r-prob-image').classList.add('hidden');
       document.getElementById('btn-submit').disabled = false;
       document.getElementById('btn-submit').textContent = '▶ Wyślij zgłoszenie';
       if (currentEventSource) { currentEventSource.close(); currentEventSource = null; }
@@ -780,6 +829,7 @@
     async function switchIncident() {
       const incidentId = document.getElementById('incident-switcher').value;
       if (!incidentId) return;
+      currentIncidentId = incidentId;
 
       const selectedIncident = incidentsCache.find(i => i.incident_id === incidentId);
       if (selectedIncident) fillIncidentPreview(selectedIncident);
@@ -861,6 +911,7 @@
 
                 if (event.type === 'error') {
                   addLogEntry('error', null, '❌ Błąd: ' + event.message);
+                  document.getElementById('btn-retry').classList.remove('hidden');
                 }
               } catch (e) {
                 console.error('Błąd przetwarzania SSE:', e);
@@ -870,6 +921,7 @@
         }
       } catch (e) {
         addLogEntry('error', null, '❌ Błąd ładowania: ' + e.message);
+        document.getElementById('btn-retry').classList.remove('hidden');
       }
     }
 

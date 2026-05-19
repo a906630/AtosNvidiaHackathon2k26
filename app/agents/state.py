@@ -20,7 +20,7 @@ class IncidentState(TypedDict):
 
     # Router output
     category: str
-    related_categories: list[str]
+    related_categories: Annotated[list[str], add]
     selected_domains: list[str]
     recent_incidents: list[dict]
 
