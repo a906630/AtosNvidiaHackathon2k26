@@ -432,19 +432,6 @@ examples/
 
 ---
 
-## 🧪 Testowanie
-
-```bash
-# Test jednostkowy modelu wiarygodności
-python test_credibility_model.py
-
-# Wyślij 50 przykładowych incydentów
-python examples/send_incidents.py
-
-# Szybki test poprawności
-curl http://localhost:8080/health
-curl http://localhost:8080/viz/graph/json
-```
 
 Szczegółowe instrukcje: [examples/README.md](examples/README.md)
 
