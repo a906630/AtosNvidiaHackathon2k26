@@ -109,7 +109,10 @@ async def main() -> int:
     # Send incidents
     results = []
     async with httpx.AsyncClient() as client:
+        skip_examples = ["_06.json", "_07.json", "_08.json", "_09.json", "_10.json"]
         for idx, json_file in enumerate(json_files, 1):
+            if any(p in json_file.name for p in skip_examples):
+                continue
             log_info(f"[{idx}/{len(json_files)}] Przetwarzanie...")
             result = await send_incident(client, api_url, json_file)
             results.append(result)
