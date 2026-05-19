@@ -537,55 +537,55 @@ Return JSON only:
 
          result["credibility_score"] = bounded_score
 
-          # If very low evidence, mark corroboration as false
-          if len(top_results) == 0:
-              result["corroborating_evidence"] = False
-              result["confidence"] = "low"
+         # If very low evidence, mark corroboration as false
+         if len(top_results) == 0:
+             result["corroborating_evidence"] = False
+             result["confidence"] = "low"
 
-          related = [_normalize_category(item) for item in _extract_related_categories(result.get("related_categories"))]
-          related = [item for item in related if item not in {"unknown", domain}]
+         related = [_normalize_category(item) for item in _extract_related_categories(result.get("related_categories"))]
+         related = [item for item in related if item not in {"unknown", domain}]
 
-          return {
-              "domain_verifications": {
-                  domain: {
-                      "credibility_score": _as_float(result.get("credibility_score", 0.5), 0.5),
-                      "deepfake_risk": _as_float(result.get("deepfake_risk", 0.3), 0.3),
-                      "reasoning": _as_str(result.get("reasoning"), ""),
-                      "sources_found": _as_list_str(result.get("sources_found")),
-                      "key_findings": _as_list_str(result.get("key_findings")),
-                      "corroborating_evidence": bool(result.get("corroborating_evidence", False)),
-                  }
-              },
-              "related_categories": sorted(set((state.get("related_categories", []) or []) + related)),
-              "processing_log": [
-                  {
-                      "agent": f"{domain}_verifier",
-                      "status": "completed",
-                      "timestamp": _now(),
-                      "details": {
-                          "domain": domain,
-                          "media_sources_checked": {
-                              "curated_urls": source_urls(domain),
-                              "x_hashtags_monitored": social_tags(domain),
-                              "total_queries_executed": len(queries[:8]),
-                          },
-                          "queries": queries[:8],
-                          "curated_sources": source_urls(domain),
-                          "social_tags": social_tags(domain),
-                          "results_fetched": len(raw_results),
-                          "results_after_reranking": len(top_results),
-                          "reranking_device": reranker.device,
-                          "top_results_preview": top_results[:2] if len(top_results) >= 2 else top_results,
-                          "cache": cache_meta,
-                          "related_categories": related,
-                          "confidence": result.get("confidence", "medium"),
-                          "guardrails": guard_info,
-                      },
-                  }
-              ],
-          }
+         return {
+             "domain_verifications": {
+                 domain: {
+                     "credibility_score": _as_float(result.get("credibility_score", 0.5), 0.5),
+                     "deepfake_risk": _as_float(result.get("deepfake_risk", 0.3), 0.3),
+                     "reasoning": _as_str(result.get("reasoning"), ""),
+                     "sources_found": _as_list_str(result.get("sources_found")),
+                     "key_findings": _as_list_str(result.get("key_findings")),
+                     "corroborating_evidence": bool(result.get("corroborating_evidence", False)),
+                 }
+             },
+             "related_categories": sorted(set((state.get("related_categories", []) or []) + related)),
+             "processing_log": [
+                 {
+                     "agent": f"{domain}_verifier",
+                     "status": "completed",
+                     "timestamp": _now(),
+                     "details": {
+                         "domain": domain,
+                         "media_sources_checked": {
+                             "curated_urls": source_urls(domain),
+                             "x_hashtags_monitored": social_tags(domain),
+                             "total_queries_executed": len(queries[:8]),
+                         },
+                         "queries": queries[:8],
+                         "curated_sources": source_urls(domain),
+                         "social_tags": social_tags(domain),
+                         "results_fetched": len(raw_results),
+                         "results_after_reranking": len(top_results),
+                         "reranking_device": reranker.device,
+                         "top_results_preview": top_results[:2] if len(top_results) >= 2 else top_results,
+                         "cache": cache_meta,
+                         "related_categories": related,
+                         "confidence": result.get("confidence", "medium"),
+                         "guardrails": guard_info,
+                     },
+                 }
+             ],
+         }
 
-    return domain_verifier_node
+     return domain_verifier_node
 
 
 def make_cross_domain_correlator_node(llm):
