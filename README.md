@@ -90,6 +90,20 @@ Jeśli nie ustawisz zmiennych per-agent, aplikacja użyje `NVIDIA_MODEL` jako fa
 
 - `GET /health` - status systemu + GPU info + tracing URL
 
+## Troubleshooting (NVIDIA NIM + guardrails)
+
+- `LLM Guard unavailable: No module named 'llm_guard'`
+  - oznacza brak pakietu `llm-guard`; aplikacja przechodzi wtedy na regex fallback
+  - po instalacji zależności (`pip install -r requirements.txt`) pełny pipeline guardrails powinien działać
+- `Correlator LLM error: [404] Not Found`
+  - zwykle oznacza model niedostępny na danej instancji NIM
+  - sprawdź katalog modeli: `GET /v1/models` i dopasuj `.env`
+  - aplikacja waliduje mapowanie agent->model i próbuje fallback do `NVIDIA_MODEL`
+  - dodatkowo przy `404 model_not_found` wykonywany jest retry z modelem fallbackowym
+- brak widocznych zapytań do mediów/search w logach
+  - domain verifiers logują teraz każde zapytanie i status odpowiedzi (`[flood_verifier] search query: ...`)
+  - jeśli widzisz `search-tool-unavailable`, środowisko nie ma działającego backendu wyszukiwania
+
 ## Publiczne zrodla danych (Polska)
 
 Przykladowe zrodla z katalogu `app/data/public_sources.py`:

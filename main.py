@@ -96,18 +96,19 @@ app.include_router(viz_router)
 )
 async def health():
     from app.agents.cuda_utils import get_cuda_info
+    model_routing = {
+        "supervisor": settings.nvidia_model_supervisor or settings.nvidia_model,
+        "domain_verifier": settings.nvidia_model_domain_verifier or settings.nvidia_model,
+        "cross_domain_correlator": settings.nvidia_model_cross_domain_correlator or settings.nvidia_model,
+        "priority_assessor": settings.nvidia_model_priority_assessor or settings.nvidia_model,
+        "comms_generator": settings.nvidia_model_comms_generator or settings.nvidia_model,
+    }
     return {
         "status": "ok",
         "system": settings.app_title,
         "nvidia_base_url": settings.nvidia_base_url,
         "nvidia_model": settings.nvidia_model,
-        "nvidia_model_routing": {
-            "supervisor": settings.nvidia_model_supervisor,
-            "domain_verifier": settings.nvidia_model_domain_verifier,
-            "cross_domain_correlator": settings.nvidia_model_cross_domain_correlator,
-            "priority_assessor": settings.nvidia_model_priority_assessor,
-            "comms_generator": settings.nvidia_model_comms_generator,
-        },
+        "nvidia_model_routing": model_routing,
         "gpu": get_cuda_info(),
         "tracing_ui": get_phoenix_url(),
     }

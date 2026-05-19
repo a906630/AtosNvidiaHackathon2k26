@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Literal
 
+import httpx
+
 from langchain_core.messages import HumanMessage
 from langgraph.graph import END, START, StateGraph
 
@@ -98,6 +100,60 @@ def _agent_model_map() -> dict[str, str]:
         "priority_assessor": settings.nvidia_model_priority_assessor or fallback,
         "comms_generator": settings.nvidia_model_comms_generator or fallback,
     }
+
+
+def _fetch_nim_models() -> set[str]:
+    """Fetch available model IDs from NVIDIA NIM; return empty set on failure."""
+    settings = get_settings()
+    models_url = f"{settings.nvidia_base_url.rstrip('/')}/models"
+    headers = {}
+    if settings.nvidia_api_key and settings.nvidia_api_key != "no-key":
+        headers["Authorization"] = f"Bearer {settings.nvidia_api_key}"
+
+    try:
+        response = httpx.get(models_url, headers=headers, timeout=5.0)
+        response.raise_for_status()
+        payload = response.json()
+        entries = payload.get("data", []) if isinstance(payload, dict) else []
+        return {
+            str(item.get("id", "")).strip()
+            for item in entries
+            if isinstance(item, dict) and item.get("id")
+        }
+    except Exception as exc:
+        logger.warning(f"Unable to fetch NVIDIA NIM model catalog from {models_url}: {exc}")
+        return set()
+
+
+def _resolve_agent_model_map() -> dict[str, str]:
+    """Validate mapped models against NIM catalog and fallback to default model when needed."""
+    settings = get_settings()
+    mapped = _agent_model_map()
+    available = _fetch_nim_models()
+    if not available:
+        return mapped
+
+    resolved = mapped.copy()
+    fallback = settings.nvidia_model
+    for role, model in mapped.items():
+        if model in available:
+            continue
+        if fallback in available:
+            logger.warning(
+                "Model '%s' for role '%s' not found in NIM catalog. Falling back to '%s'.",
+                model,
+                role,
+                fallback,
+            )
+            resolved[role] = fallback
+        else:
+            logger.warning(
+                "Model '%s' for role '%s' not found in NIM catalog and fallback '%s' is also unavailable.",
+                model,
+                role,
+                fallback,
+            )
+    return resolved
 
 
 def _normalize_category(raw: str | None) -> str:
@@ -197,16 +253,21 @@ def make_domain_verifier_node(llm, search_tool, domain: str):
         raw_results: list[str] = []
         if search_tool:
             for query in queries[:8]:
+                logger.info(f"[{domain}_verifier] search query: {query}")
                 try:
                     raw = await search_tool.ainvoke(query)
                     if isinstance(raw, list):
+                        logger.info(f"[{domain}_verifier] search returned {len(raw)} items")
                         for item in raw[:2]:
                             raw_results.append(str(item.get("content", ""))[:700] if isinstance(item, dict) else str(item)[:700])
                     else:
+                        logger.info(f"[{domain}_verifier] search returned non-list payload")
                         raw_results.append(str(raw)[:700])
                 except Exception as exc:
+                    logger.warning(f"[{domain}_verifier] search error for query='{query}': {exc}")
                     raw_results.append(f"[search-error: {exc}]")
         else:
+            logger.warning(f"[{domain}_verifier] search-tool-unavailable")
             raw_results.append("[search-tool-unavailable]")
 
         valid_results = [item for item in raw_results if not item.startswith("[search-error") and item.strip()]
@@ -541,12 +602,38 @@ Return JSON only:
 async def _guarded_ainvoke(llm, prompt: str, context: str):
     """Run prompt guardrails before invoking the LLM."""
     sanitized_prompt, guard_info = guard_prompt(prompt, context=context)
-    response = await llm.ainvoke([HumanMessage(content=sanitized_prompt)])
+    try:
+        response = await llm.ainvoke([HumanMessage(content=sanitized_prompt)])
+    except Exception as exc:
+        settings = get_settings()
+        current_model = getattr(llm, "model", None)
+        is_not_found = "404" in str(exc) or "Not Found" in str(exc)
+        can_retry = is_not_found and current_model and current_model != settings.nvidia_model
+        if not can_retry:
+            raise
+
+        logger.warning(
+            "LLM call failed in context '%s' for model '%s' with '%s'. Retrying with fallback model '%s'.",
+            context,
+            current_model,
+            exc,
+            settings.nvidia_model,
+        )
+        fallback_llm = _get_llm(settings.nvidia_model)
+        response = await fallback_llm.ainvoke([HumanMessage(content=sanitized_prompt)])
+        guard_info = {
+            **guard_info,
+            "llm_model_fallback": {
+                "from": current_model,
+                "to": settings.nvidia_model,
+                "reason": "model_not_found",
+            },
+        }
     return response, guard_info
 
 
-def build_crisis_graph():
-    model_map = _agent_model_map()
+def build_crisis_graph(model_map: dict[str, str] | None = None):
+    model_map = model_map or _resolve_agent_model_map()
     llm_supervisor = _get_llm(model_map["supervisor"])
     llm_domain_verifier = _get_llm(model_map["domain_verifier"])
     llm_cross_domain = _get_llm(model_map["cross_domain_correlator"])
@@ -610,7 +697,8 @@ def build_crisis_graph():
 @lru_cache(maxsize=1)
 def get_graph():
     logger.info("Building CZK LangGraph workflow...")
-    logger.info(f"Per-agent model map: {_agent_model_map()}")
-    graph = build_crisis_graph()
+    resolved_map = _resolve_agent_model_map()
+    logger.info(f"Per-agent model map: {resolved_map}")
+    graph = build_crisis_graph(model_map=resolved_map)
     logger.info("Graph ready.")
     return graph

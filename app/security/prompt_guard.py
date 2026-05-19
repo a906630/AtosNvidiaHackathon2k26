@@ -18,6 +18,7 @@ from typing import Any
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
+_llm_guard_warned = False
 
 
 # Conservative patterns used by fallback checks and BanSubstrings scanner.
@@ -84,7 +85,14 @@ def _scan_with_llm_guard(prompt: str) -> tuple[str, bool, dict[str, Any]]:
         }
 
     except Exception as exc:
-        logger.warning(f"LLM Guard unavailable or failed: {exc}; using regex fallback")
+        global _llm_guard_warned
+        if not _llm_guard_warned:
+            logger.warning(
+                "LLM Guard unavailable or failed: %s; using regex fallback. "
+                "Install dependency 'llm-guard' to enable full scanner pipeline.",
+                exc,
+            )
+            _llm_guard_warned = True
         return _fallback_scan(prompt)
 
 

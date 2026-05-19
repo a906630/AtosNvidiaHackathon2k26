@@ -31,6 +31,9 @@ openinference-instrumentation-langchain>=0.1.0
 opentelemetry-sdk>=1.25.0
 opentelemetry-exporter-otlp-proto-http>=1.25.0
 
+# Guardrails
+llm-guard>=0.3.14
+
 # Utilities
 httpx>=0.27.0
 python-multipart>=0.0.9
